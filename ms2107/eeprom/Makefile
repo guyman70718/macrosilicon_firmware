@@ -5,6 +5,11 @@ AS = sdas8051
 CFLAGS = --model-small --data-loc 0x0B
 CODE_LOC = 0xC800
 
+# Optional: custom USB strings (uncomment to override ROM defaults)
+# Max 8 chars for serial, ~15 for manufacturer
+#CUSTOM_STRINGS = -DCUSTOM_USB_SERIAL='"CUSTOM01"' -DCUSTOM_USB_MANUFACTURER='"MyCompany"'
+CUSTOM_STRINGS =
+
 all: eeprom_fw.bin
 
 # Assemble custom CRT0
@@ -13,7 +18,7 @@ crt0_ms2107.rel: crt0_ms2107.asm
 
 # Compile C to relocatable object
 eeprom_fw.rel: eeprom_fw.c hw_defs.h rom_stubs.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(CUSTOM_STRINGS) -c -o $@ $<
 
 # Link with custom CRT0
 eeprom_fw.ihx: crt0_ms2107.rel eeprom_fw.rel

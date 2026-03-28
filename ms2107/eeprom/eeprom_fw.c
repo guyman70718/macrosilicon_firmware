@@ -122,6 +122,9 @@ __xdata __at(0xC681) uint8_t adj_saturation;
 /* === Forward declarations === */
 void cmd_setup_video_regs(void);
 void process_mailbox(void);
+#if defined(CUSTOM_USB_SERIAL) || defined(CUSTOM_USB_MANUFACTURER)
+static void write_usb_string(__xdata uint8_t *desc, const char *str);
+#endif
 void cmd_video_mode_config(void);
 void cmd_video_output_config(void);
 void cmd_video_process(void);
@@ -618,7 +621,41 @@ void cmd_video_mode_config(void)            /* 0xC884 */
     if (video_mode == 0x01) {
         usb_ctrl2 |= 0x10;
     }
+
+    /* Overwrite USB string descriptors in RAM.
+     * build_usb_descriptors (ROM 0x1E57) runs right before this handler.
+     * The ROM builds string descriptors at fixed XDATA addresses:
+     *   0xC4C3 = manufacturer (from EEPROM[0x10] or ROM default)
+     *   0xC4F3 = product (from EEPROM[0x20] or ROM default)
+     *   0xC523 = serial number (always ROM "20200909")
+     *
+     * To override, define CUSTOM_USB_SERIAL and/or CUSTOM_USB_MANUFACTURER
+     * as string literals. Max 8 chars for serial, ~15 for manufacturer.
+     * The strings are converted to USB descriptor format (UTF-16LE) at boot.
+     */
+#ifdef CUSTOM_USB_SERIAL
+    write_usb_string((__xdata uint8_t *)0xC523, CUSTOM_USB_SERIAL);
+#endif
+#ifdef CUSTOM_USB_MANUFACTURER
+    write_usb_string((__xdata uint8_t *)0xC4C3, CUSTOM_USB_MANUFACTURER);
+#endif
 }
+
+#if defined(CUSTOM_USB_SERIAL) || defined(CUSTOM_USB_MANUFACTURER)
+/* Write an ASCII string as a USB string descriptor to XDATA.
+ * Format: [length, 0x03, char0, 0x00, char1, 0x00, ...] */
+static void write_usb_string(__xdata uint8_t *desc, const char *str)
+{
+    uint8_t i, len;
+    for (len = 0; str[len]; len++);
+    desc[0] = len * 2 + 2;
+    desc[1] = 0x03;
+    for (i = 0; i < len; i++) {
+        desc[2 + i * 2] = str[i];
+        desc[3 + i * 2] = 0x00;
+    }
+}
+#endif
 
 
 /* ================================================================
