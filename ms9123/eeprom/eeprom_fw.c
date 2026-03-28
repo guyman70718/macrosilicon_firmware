@@ -496,7 +496,8 @@ void process_mailbox(void)
     case MBOX_CMD_I2C_WRITE:
         /* p0 = device address (7-bit << 1)
          * p1 = register/data byte
-         * No interrupt disable needed — P3.7 is not an interrupt pin. */
+         * Must set P2.2 before I2C — enables bus mux (cleared by display init). */
+        P2 |= 0x04;                        /* SETB P2.2: enable I2C bus */
         rom_i2c_start();
         nak = rom_i2c_write(p0);
         if (nak) {
@@ -515,6 +516,7 @@ void process_mailbox(void)
     case MBOX_CMD_I2C_READ:
         /* p0 = device address (7-bit << 1)
          * p1 = register address */
+        P2 |= 0x04;                        /* SETB P2.2: enable I2C bus */
         rom_i2c_start();
         nak = rom_i2c_write(p0);
         if (nak) {
@@ -534,6 +536,7 @@ void process_mailbox(void)
     /* ── I2C Bus A scan ── */
     case MBOX_CMD_I2C_SCAN:
         /* p0 = start address (7-bit << 1), scans 6 addresses */
+        P2 |= 0x04;                        /* SETB P2.2: enable I2C bus */
         {
             uint8_t bitmap = 0;
             uint8_t i;
