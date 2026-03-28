@@ -208,6 +208,61 @@ _rom_output_timing_setup::
 	ret
 
 
+	; ================================================================
+	; I2C Bus A (EEPROM bus) wrappers
+	; SDA = P3.7 (inverted: CLR=high, SETB=low)
+	; SCL via ROM helpers (0x71D7/0x736B)
+	; ACK/NAK via bit 0x02 (byte 0x20, bit 2)
+	; No interrupt disable needed (P3.7 is not an interrupt pin)
+	; ================================================================
+
+	; ROM 0x6AB8 — I2C start condition. No parameters.
+_rom_i2c_start::
+	.globl _rom_i2c_start
+	lcall	0x6AB8
+	ret
+
+	; ROM 0x6919 — I2C stop condition. No parameters.
+_rom_i2c_stop::
+	.globl _rom_i2c_stop
+	lcall	0x6919
+	ret
+
+	; ROM 0x46BC — I2C write byte.
+	; SDCC DPL = byte to send. ROM uses Keil R7.
+	; Returns: ACK status from bit 0x02 (byte 0x20, bit 2).
+	;   bit set = ACK received (success)
+	;   bit clear = NAK
+	; We return 0=ACK, 1=NAK in SDCC DPL.
+_rom_i2c_write::
+	.globl _rom_i2c_write
+	mov	r7, dpl				; SDCC DPL -> Keil R7
+	lcall	0x46BC
+	clr	a
+	jb	0x02, i2c_w_ack			; bit 0x02 set = ACK
+	inc	a				; A=1 = NAK
+i2c_w_ack:
+	mov	dpl, a				; DPL: 0=ACK, 1=NAK
+	ret
+
+	; ROM 0x4B9B — I2C read byte.
+	; SDCC DPL = ACK flag: 0=send ACK, non-zero=send NAK.
+	; ROM uses bit 0x02: set=NAK, clear=ACK.
+	; Returns read byte in Keil R7 -> SDCC DPL.
+_rom_i2c_read::
+	.globl _rom_i2c_read
+	mov	a, dpl
+	jz	i2c_r_ack
+	setb	0x02				; NAK
+	sjmp	i2c_r_do
+i2c_r_ack:
+	clr	0x02				; ACK
+i2c_r_do:
+	lcall	0x4B9B
+	mov	dpl, r7				; read byte -> SDCC DPL
+	ret
+
+
 	; No GSINIT needed — ROM handles initialization
 	.area GSINIT  (CODE)
 	.area GSFINAL (CODE)

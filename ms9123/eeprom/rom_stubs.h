@@ -79,4 +79,22 @@ extern void rom_safe_reconfig(void);
  * Called once during init hook 2. */
 extern void rom_output_timing_setup(void);
 
+/* ROM 0x6AB8 - I2C Bus A start condition
+ * SDA (P3.7) pulled low while SCL high. */
+extern void rom_i2c_start(void);
+
+/* ROM 0x6919 - I2C Bus A stop condition
+ * SDA (P3.7) released while SCL high. */
+extern void rom_i2c_stop(void);
+
+/* ROM 0x46BC - I2C Bus A write byte
+ * Sends byte, returns 0=ACK, 1=NAK in DPL.
+ * ACK detected via bit 0x02 (byte 0x20, bit 2). */
+extern uint8_t rom_i2c_write(uint8_t val);
+
+/* ROM 0x4B9B - I2C Bus A read byte
+ * ack=0 sends ACK (continue), ack=non-zero sends NAK (last byte).
+ * Returns read byte in DPL. */
+extern uint8_t rom_i2c_read(uint8_t ack);
+
 #endif /* ROM_STUBS_H */

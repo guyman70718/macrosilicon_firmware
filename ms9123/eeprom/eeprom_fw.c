@@ -91,6 +91,9 @@ __xdata __at(0xDDF9) uint8_t mbox_resp5;
 #define MBOX_CMD_DAC_WRITE      0x04  /* Write DAC configuration */
 #define MBOX_CMD_GPIO_READ      0x05  /* Read GPIO port state */
 #define MBOX_CMD_GPIO_WRITE     0x06  /* Write GPIO port state */
+#define MBOX_CMD_I2C_WRITE      0x10  /* I2C Bus A write */
+#define MBOX_CMD_I2C_READ       0x11  /* I2C Bus A read */
+#define MBOX_CMD_I2C_SCAN       0x12  /* I2C Bus A scan */
 __xdata __at(0xDE04) uint8_t xfer_reg;        /* Data transfer register */
 __xdata __at(0xDE05) uint8_t xfer_buf[4];     /* Transfer buffer (4 bytes via store_r4r5r6r7) */
 __xdata __at(0xDE09) uint8_t delay_arg;       /* Delay argument storage */
@@ -392,6 +395,7 @@ void process_mailbox(void)
     uint8_t cmd = mbox_cmd;
     uint8_t p0 = mbox_param0;
     uint8_t p1 = mbox_param1;
+    uint8_t nak;
 
     switch (cmd) {
 
@@ -484,6 +488,66 @@ void process_mailbox(void)
             case 2: P2 = p1; break;
             case 3: P3 = p1; break;
             default: mbox_status = 0xFF; goto done_mbox;
+        }
+        mbox_status = 0x02;
+        break;
+
+    /* ── I2C Bus A write ── */
+    case MBOX_CMD_I2C_WRITE:
+        /* p0 = device address (7-bit << 1)
+         * p1 = register/data byte
+         * No interrupt disable needed — P3.7 is not an interrupt pin. */
+        rom_i2c_start();
+        nak = rom_i2c_write(p0);
+        if (nak) {
+            rom_i2c_stop();
+            mbox_resp0 = 0;
+            mbox_status = 0xFF;
+            break;
+        }
+        nak = rom_i2c_write(p1);
+        rom_i2c_stop();
+        mbox_resp0 = nak ? 0 : 1;
+        mbox_status = 0x02;
+        break;
+
+    /* ── I2C Bus A read ── */
+    case MBOX_CMD_I2C_READ:
+        /* p0 = device address (7-bit << 1)
+         * p1 = register address */
+        rom_i2c_start();
+        nak = rom_i2c_write(p0);
+        if (nak) {
+            rom_i2c_stop();
+            mbox_resp0 = 0;
+            mbox_status = 0xFF;
+            break;
+        }
+        rom_i2c_write(p1);
+        rom_i2c_start();
+        rom_i2c_write(p0 | 0x01);
+        mbox_resp0 = rom_i2c_read(1);
+        rom_i2c_stop();
+        mbox_status = 0x02;
+        break;
+
+    /* ── I2C Bus A scan ── */
+    case MBOX_CMD_I2C_SCAN:
+        /* p0 = start address (7-bit << 1), scans 6 addresses */
+        {
+            uint8_t bitmap = 0;
+            uint8_t i;
+            for (i = 0; i < 6; i++) {
+                uint8_t addr = p0 + (i << 1);
+                rom_i2c_start();
+                nak = rom_i2c_write(addr);
+                rom_i2c_stop();
+                if (!nak) {
+                    bitmap |= (1 << i);
+                }
+            }
+            mbox_resp0 = bitmap;
+            mbox_resp1 = p0;
         }
         mbox_status = 0x02;
         break;
