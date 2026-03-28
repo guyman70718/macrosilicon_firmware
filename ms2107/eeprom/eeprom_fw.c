@@ -109,6 +109,9 @@ __xdata __at(0xD219) uint8_t mbox_resp5;     /* Response byte 5 */
 #define MBOX_CMD_SIGNAL_STATUS  0x01  /* Read signal detection state */
 #define MBOX_CMD_READ_IMAGE     0x02  /* Read image adjustment params */
 #define MBOX_CMD_WRITE_IMAGE    0x03  /* Write image adjustment param */
+#define MBOX_CMD_VIDEO_INPUT    0x04  /* Force video input selection */
+#define MBOX_CMD_GPIO_READ      0x05  /* Read GPIO port state */
+#define MBOX_CMD_GPIO_WRITE     0x06  /* Write GPIO port state */
 #define MBOX_CMD_I2C_WRITE      0x10  /* I2C write transaction */
 #define MBOX_CMD_I2C_READ       0x11  /* I2C read transaction */
 #define MBOX_CMD_I2C_SCAN       0x12  /* I2C bus scan */
@@ -735,6 +738,46 @@ void process_mailbox(void)
             case 1: adj_contrast = p1; break;
             case 2: adj_saturation = p1; break;
             case 3: adj_hue = p1; break;
+            default: mbox_status = 0xFF; goto done_mbox;
+        }
+        mbox_status = 0x02;
+        break;
+
+    /* ── Feature 4: Video input selection ── */
+    case MBOX_CMD_VIDEO_INPUT:
+        /* p0 = input mode to force:
+         *   0 = auto-detect (restore default)
+         *   1 = force CVBS (pin 8, AVIN)
+         *   2 = force S-Video (pins 3+6, SVCIN+SVYIN)
+         *   3 = force G1IN (pin 5)
+         * Sets IRAM[0x43] which video_pipeline_init reads.
+         * The ROM re-evaluates on next signal change. */
+        video_mode = p0;
+        mbox_status = 0x02;
+        break;
+
+    /* ── Feature 5: GPIO read ── */
+    case MBOX_CMD_GPIO_READ:
+        /* Returns current state of P0, P2, P3 ports */
+        mbox_resp0 = P0;
+        mbox_resp1 = P2;
+        mbox_resp2 = P3;
+        mbox_resp3 = 0;
+        mbox_resp4 = 0;
+        mbox_resp5 = 0;
+        mbox_status = 0x02;
+        break;
+
+    /* ── Feature 5: GPIO write ── */
+    case MBOX_CMD_GPIO_WRITE:
+        /* p0 = port select: 0=P0, 2=P2, 3=P3
+         * p1 = value to write
+         * WARNING: writing to wrong port bits can break video/USB.
+         * Useful for GPIO4 (P2.4 = EEPROM WP) and GPIO0 (P3.5 = audio select). */
+        switch (p0) {
+            case 0: P0 = p1; break;
+            case 2: P2 = p1; break;
+            case 3: P3 = p1; break;
             default: mbox_status = 0xFF; goto done_mbox;
         }
         mbox_status = 0x02;
