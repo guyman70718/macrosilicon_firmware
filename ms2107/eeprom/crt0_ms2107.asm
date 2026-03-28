@@ -161,25 +161,39 @@ _rom_i2c_stop::
 	ret
 
 	; ROM 0x5323 - I2C write byte
-	; Keil R7 = byte to send. Returns ACK in carry (C=1 means NAK).
-	; We return carry as DPL bit 0 for SDCC: 0=ACK, 1=NAK.
+	; Keil R7 = byte to send.
+	; Returns: carry = bit 0x23.6 = ACK status.
+	;   Carry SET (1) = ACK received (SDA pulled low by slave)
+	;   Carry CLEAR (0) = NAK (no slave responded)
+	; We invert for C convention: DPL=0 means ACK (success), DPL=1 means NAK.
 _rom_i2c_write::
 	.globl _rom_i2c_write
 	mov	r7, dpl				; SDCC DPL -> Keil R7
 	lcall	0x5323
 	clr	a
-	rlc	a				; carry -> A bit 0
-	mov	dpl, a				; return in SDCC DPL
+	jc	i2c_write_got_ack		; carry set = ACK = success
+	inc	a				; A=1 = NAK
+i2c_write_got_ack:
+	mov	dpl, a				; DPL: 0=ACK, 1=NAK
 	ret
 
 	; ROM 0x5934 - I2C read byte
-	; Keil R7 = ACK flag (0=send ACK, 1=send NAK).
+	; ACK/NAK controlled by bit 0x1D (IRAM byte 0x23, bit 5):
+	;   bit clear = send ACK (continue reading)
+	;   bit set = send NAK (last byte)
+	; SDCC DPL: 0=ACK, non-zero=NAK
 	; Returns read byte in Keil R7 -> SDCC DPL.
 _rom_i2c_read::
 	.globl _rom_i2c_read
-	mov	r7, dpl				; SDCC DPL -> Keil R7 (ack flag)
+	mov	a, dpl
+	jz	i2c_read_ack			; DPL=0 -> send ACK
+	setb	0x1D				; set bit 0x23.5 = NAK
+	sjmp	i2c_read_do
+i2c_read_ack:
+	clr	0x1D				; clear bit 0x23.5 = ACK
+i2c_read_do:
 	lcall	0x5934
-	mov	dpl, r7				; Keil R7 -> SDCC DPL (read byte)
+	mov	dpl, r7				; read byte -> SDCC DPL
 	ret
 
 
