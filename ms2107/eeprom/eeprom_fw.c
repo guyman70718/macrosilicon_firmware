@@ -786,17 +786,22 @@ void process_mailbox(void)
     /* ── Feature 3: I2C write ── */
     case MBOX_CMD_I2C_WRITE:
         /* p0 = device address (7-bit, shifted left by caller)
-         * p1 = register/data byte */
+         * p1 = register/data byte
+         * Must disable EX0/EX1 — I2C uses P3.2 (INT0) and P3.3 (INT1)
+         * as GPIO, which would trigger spurious interrupts. */
+        EX0 = 0; EX1 = 0;
         rom_i2c_start();
         nak = rom_i2c_write(p0);            /* device address + W */
         if (nak) {
             rom_i2c_stop();
+            EX0 = 1; EX1 = 1;
             mbox_resp0 = 0;                 /* NAK — device not present */
             mbox_status = 0xFF;
             break;
         }
         nak = rom_i2c_write(p1);            /* register/data byte */
         rom_i2c_stop();
+        EX0 = 1; EX1 = 1;
         mbox_resp0 = nak ? 0 : 1;          /* 1=ACK, 0=NAK */
         mbox_status = 0x02;
         break;
@@ -805,10 +810,12 @@ void process_mailbox(void)
     case MBOX_CMD_I2C_READ:
         /* p0 = device address (7-bit << 1)
          * p1 = register address to read from */
+        EX0 = 0; EX1 = 0;
         rom_i2c_start();
         nak = rom_i2c_write(p0);            /* device address + W */
         if (nak) {
             rom_i2c_stop();
+            EX0 = 1; EX1 = 1;
             mbox_resp0 = 0;
             mbox_status = 0xFF;
             break;
@@ -818,6 +825,7 @@ void process_mailbox(void)
         rom_i2c_write(p0 | 0x01);          /* device address + R */
         mbox_resp0 = rom_i2c_read(1);      /* read byte, send NAK (last byte) */
         rom_i2c_stop();
+        EX0 = 1; EX1 = 1;
         mbox_status = 0x02;
         break;
 
@@ -825,6 +833,7 @@ void process_mailbox(void)
     case MBOX_CMD_I2C_SCAN:
         /* p0 = start address (7-bit << 1), scans 6 addresses from here
          * Returns bitmap in resp0: bit N = device at (p0 + N*2) responded */
+        EX0 = 0; EX1 = 0;
         {
             uint8_t bitmap = 0;
             uint8_t i;
@@ -840,6 +849,7 @@ void process_mailbox(void)
             mbox_resp0 = bitmap;
             mbox_resp1 = p0;                /* echo start address */
         }
+        EX0 = 1; EX1 = 1;
         mbox_status = 0x02;
         break;
 
