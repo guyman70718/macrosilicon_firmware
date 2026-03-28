@@ -48,4 +48,22 @@ extern void rom_video_reset(void);
  * delay subroutine twice (~ms-scale timing). */
 extern void rom_delay(uint8_t count);
 
+/* ROM 0x68BD - I2C start condition
+ * Drives SDA low while SCL is high. Uses GPIO2 (SCL) and GPIO3 (SDA). */
+extern void rom_i2c_start(void);
+
+/* ROM 0x6B5B - I2C stop condition
+ * Drives SDA high while SCL is high. */
+extern void rom_i2c_stop(void);
+
+/* ROM 0x5323 - I2C write byte
+ * Sends one byte on I2C bus. Keil R7 = byte to send.
+ * Returns ACK status in carry flag (C=1 means NAK). */
+extern uint8_t rom_i2c_write(uint8_t val);
+
+/* ROM 0x5934 - I2C read byte
+ * Reads one byte from I2C bus. Keil R7 = ACK flag (0=ACK, 1=NAK).
+ * Returns read byte in R7. */
+extern uint8_t rom_i2c_read(uint8_t ack);
+
 #endif /* ROM_STUBS_H */

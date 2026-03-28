@@ -146,6 +146,43 @@ _rom_delay::
 	ret
 
 
+	; ROM 0x68BD - I2C start condition
+	; Drives SDA low while SCL high (GPIO2=SCL, GPIO3=SDA).
+_rom_i2c_start::
+	.globl _rom_i2c_start
+	lcall	0x68BD
+	ret
+
+	; ROM 0x6B5B - I2C stop condition
+	; Drives SDA high while SCL high.
+_rom_i2c_stop::
+	.globl _rom_i2c_stop
+	lcall	0x6B5B
+	ret
+
+	; ROM 0x5323 - I2C write byte
+	; Keil R7 = byte to send. Returns ACK in carry (C=1 means NAK).
+	; We return carry as DPL bit 0 for SDCC: 0=ACK, 1=NAK.
+_rom_i2c_write::
+	.globl _rom_i2c_write
+	mov	r7, dpl				; SDCC DPL -> Keil R7
+	lcall	0x5323
+	clr	a
+	rlc	a				; carry -> A bit 0
+	mov	dpl, a				; return in SDCC DPL
+	ret
+
+	; ROM 0x5934 - I2C read byte
+	; Keil R7 = ACK flag (0=send ACK, 1=send NAK).
+	; Returns read byte in Keil R7 -> SDCC DPL.
+_rom_i2c_read::
+	.globl _rom_i2c_read
+	mov	r7, dpl				; SDCC DPL -> Keil R7 (ack flag)
+	lcall	0x5934
+	mov	dpl, r7				; Keil R7 -> SDCC DPL (read byte)
+	ret
+
+
 	; No GSINIT/GSFINAL needed - ROM handles all initialization
 	.area GSINIT  (CODE)
 	.area GSFINAL (CODE)

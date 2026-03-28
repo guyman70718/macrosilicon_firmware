@@ -83,8 +83,45 @@ __xdata __at(0xFE85) uint8_t vin_hscale_hi;
 __xdata __at(0xFEB9) uint8_t vin_ctrl;
 
 
+/* === Host command mailbox (XDATA 0xD210-0xD21F) ===
+ * The host writes commands via HID 0xB6 (XDATA write), reads results
+ * via 0xB5 (XDATA read). The mailbox is polled by cmd_video_process
+ * (R7=2) which runs every main loop iteration.
+ *
+ * Protocol:
+ *   Host writes: [cmd] to D210, [param0] to D211, [param1] to D212
+ *   Firmware: processes command, writes results to D214-D219, sets D213=0x02 (done)
+ *   Host reads: D213 for status, D214-D219 for response data
+ *   Host clears: D210=0 when done reading
+ */
+__xdata __at(0xD210) uint8_t mbox_cmd;       /* Command byte (0=idle) */
+__xdata __at(0xD211) uint8_t mbox_param0;    /* Parameter 0 */
+__xdata __at(0xD212) uint8_t mbox_param1;    /* Parameter 1 */
+__xdata __at(0xD213) uint8_t mbox_status;    /* Status: 0=idle, 2=done, 0xFF=error */
+__xdata __at(0xD214) uint8_t mbox_resp0;     /* Response byte 0 */
+__xdata __at(0xD215) uint8_t mbox_resp1;     /* Response byte 1 */
+__xdata __at(0xD216) uint8_t mbox_resp2;     /* Response byte 2 */
+__xdata __at(0xD217) uint8_t mbox_resp3;     /* Response byte 3 */
+__xdata __at(0xD218) uint8_t mbox_resp4;     /* Response byte 4 */
+__xdata __at(0xD219) uint8_t mbox_resp5;     /* Response byte 5 */
+
+/* Mailbox command IDs */
+#define MBOX_CMD_SIGNAL_STATUS  0x01  /* Read signal detection state */
+#define MBOX_CMD_READ_IMAGE     0x02  /* Read image adjustment params */
+#define MBOX_CMD_WRITE_IMAGE    0x03  /* Write image adjustment param */
+#define MBOX_CMD_I2C_WRITE      0x10  /* I2C write transaction */
+#define MBOX_CMD_I2C_READ       0x11  /* I2C read transaction */
+#define MBOX_CMD_I2C_SCAN       0x12  /* I2C bus scan */
+
+/* Video adjustment registers in XDATA (set by ROM, readable/writable) */
+__xdata __at(0xC67B) uint8_t adj_brightness;
+__xdata __at(0xC67D) uint8_t adj_contrast;
+__xdata __at(0xC67F) uint8_t adj_hue;
+__xdata __at(0xC681) uint8_t adj_saturation;
+
 /* === Forward declarations === */
 void cmd_setup_video_regs(void);
+void process_mailbox(void);
 void cmd_video_mode_config(void);
 void cmd_video_output_config(void);
 void cmd_video_process(void);
@@ -460,6 +497,10 @@ check_accumulator:
     }
 
 done:
+    /* Check host command mailbox every main loop iteration */
+    if (mbox_cmd != 0) {
+        process_mailbox();
+    }
     return;
 }
 
@@ -603,6 +644,134 @@ void cmd_video_output_config(void)          /* 0xC8AA */
  * ================================================================ */
 /* 0xCC8E: sjmp 0xCC8E  -- this is a deliberate infinite loop, likely
  * a watchdog-triggering halt for error conditions */
+
+/* ================================================================
+ * Host command mailbox processor
+ * Called from cmd_video_process (R7=2) every main loop iteration.
+ * Reads command from XDATA[0xD210], processes it, writes response
+ * to XDATA[0xD214-0xD219], sets status at XDATA[0xD213].
+ *
+ * Host protocol (via HID 0xB5/0xB6 XDATA read/write):
+ *   1. Write param0 to 0xD211, param1 to 0xD212 (if needed)
+ *   2. Write command byte to 0xD210 (triggers processing)
+ *   3. Poll 0xD213 until status == 0x02 (done) or 0xFF (error)
+ *   4. Read response from 0xD214-0xD219
+ *   5. Write 0x00 to 0xD210 to clear
+ * ================================================================ */
+void process_mailbox(void)
+{
+    uint8_t cmd = mbox_cmd;
+    uint8_t p0 = mbox_param0;
+    uint8_t p1 = mbox_param1;
+    uint8_t nak;
+
+    switch (cmd) {
+
+    /* ── Feature 1: Signal status reporting ── */
+    case MBOX_CMD_SIGNAL_STATUS:
+        mbox_resp0 = signal_standard;       /* IRAM[0x40]: 0=none, <7=detecting, >=7=locked */
+        mbox_resp1 = vsig_status & 0x0F;    /* FB4D: signal status bits */
+        mbox_resp2 = vsig_line_lo;          /* FB8D: detected line count low */
+        mbox_resp3 = vsig_line_hi;          /* FB8E: detected line count high */
+        mbox_resp4 = fw_state2;             /* D202: detection state (0/1/2) */
+        mbox_resp5 = video_mode;            /* IRAM[0x43]: input mode from GPIO */
+        mbox_status = 0x02;
+        break;
+
+    /* ── Feature 2: Read image adjustments ── */
+    case MBOX_CMD_READ_IMAGE:
+        mbox_resp0 = adj_brightness;        /* C67B */
+        mbox_resp1 = adj_contrast;          /* C67D */
+        mbox_resp2 = adj_saturation;        /* C681 */
+        mbox_resp3 = adj_hue;              /* C67F */
+        mbox_resp4 = 0;
+        mbox_resp5 = 0;
+        mbox_status = 0x02;
+        break;
+
+    /* ── Feature 2: Write image adjustment ── */
+    case MBOX_CMD_WRITE_IMAGE:
+        /* p0 = which param (0=brightness, 1=contrast, 2=saturation, 3=hue) */
+        /* p1 = new value */
+        switch (p0) {
+            case 0: adj_brightness = p1; break;
+            case 1: adj_contrast = p1; break;
+            case 2: adj_saturation = p1; break;
+            case 3: adj_hue = p1; break;
+            default: mbox_status = 0xFF; goto done_mbox;
+        }
+        mbox_status = 0x02;
+        break;
+
+    /* ── Feature 3: I2C write ── */
+    case MBOX_CMD_I2C_WRITE:
+        /* p0 = device address (7-bit, shifted left by caller)
+         * p1 = register/data byte */
+        rom_i2c_start();
+        nak = rom_i2c_write(p0);            /* device address + W */
+        if (nak) {
+            rom_i2c_stop();
+            mbox_resp0 = 0;                 /* NAK — device not present */
+            mbox_status = 0xFF;
+            break;
+        }
+        nak = rom_i2c_write(p1);            /* register/data byte */
+        rom_i2c_stop();
+        mbox_resp0 = nak ? 0 : 1;          /* 1=ACK, 0=NAK */
+        mbox_status = 0x02;
+        break;
+
+    /* ── Feature 3: I2C read ── */
+    case MBOX_CMD_I2C_READ:
+        /* p0 = device address (7-bit << 1)
+         * p1 = register address to read from */
+        rom_i2c_start();
+        nak = rom_i2c_write(p0);            /* device address + W */
+        if (nak) {
+            rom_i2c_stop();
+            mbox_resp0 = 0;
+            mbox_status = 0xFF;
+            break;
+        }
+        rom_i2c_write(p1);                  /* register address */
+        rom_i2c_start();                    /* repeated start */
+        rom_i2c_write(p0 | 0x01);          /* device address + R */
+        mbox_resp0 = rom_i2c_read(1);      /* read byte, send NAK (last byte) */
+        rom_i2c_stop();
+        mbox_status = 0x02;
+        break;
+
+    /* ── Feature 3: I2C bus scan ── */
+    case MBOX_CMD_I2C_SCAN:
+        /* p0 = start address (7-bit << 1), scans 6 addresses from here
+         * Returns bitmap in resp0: bit N = device at (p0 + N*2) responded */
+        {
+            uint8_t bitmap = 0;
+            uint8_t i;
+            for (i = 0; i < 6; i++) {
+                uint8_t addr = p0 + (i << 1);
+                rom_i2c_start();
+                nak = rom_i2c_write(addr);
+                rom_i2c_stop();
+                if (!nak) {
+                    bitmap |= (1 << i);
+                }
+            }
+            mbox_resp0 = bitmap;
+            mbox_resp1 = p0;                /* echo start address */
+        }
+        mbox_status = 0x02;
+        break;
+
+    default:
+        mbox_status = 0xFF;                 /* unknown command */
+        break;
+    }
+
+done_mbox:
+    mbox_cmd = 0;                           /* clear command (done) */
+}
+
 
 /* No main() — this firmware is hook-driven. The ROM calls
  * 0xC800 (normal hook) and 0xC810 (IRQ hook) directly.
