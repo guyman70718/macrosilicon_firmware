@@ -67,7 +67,30 @@ __xdata __at(0xC347) uint8_t scaler_vtiming0; /* Output scaler vertical timing 0
 __xdata __at(0xC348) uint8_t scaler_vtiming1; /* Output scaler vertical timing 1 */
 __xdata __at(0xC4DA) uint8_t cvbs_timing;     /* CVBS output timing parameter */
 __xdata __at(0xC612) uint8_t output_active;   /* Display output pipeline active flag */
-__xdata __at(0xDDFF) uint8_t host_mailbox;    /* Host command mailbox (write 0x5A to trigger reconfig) */
+__xdata __at(0xDDFF) uint8_t host_mailbox;    /* Legacy: write 0x5A to trigger reconfig */
+
+/* === Extended host command mailbox (XDATA 0xDDF0-0xDDFE) ===
+ * Host writes commands via HID 0xB6, reads results via 0xB5.
+ * Polled every iteration of the init_hook2 service loop.
+ */
+__xdata __at(0xDDF0) uint8_t mbox_cmd;       /* Command byte (0=idle) */
+__xdata __at(0xDDF1) uint8_t mbox_param0;
+__xdata __at(0xDDF2) uint8_t mbox_param1;
+__xdata __at(0xDDF3) uint8_t mbox_status;    /* 0=idle, 2=done, 0xFF=error */
+__xdata __at(0xDDF4) uint8_t mbox_resp0;
+__xdata __at(0xDDF5) uint8_t mbox_resp1;
+__xdata __at(0xDDF6) uint8_t mbox_resp2;
+__xdata __at(0xDDF7) uint8_t mbox_resp3;
+__xdata __at(0xDDF8) uint8_t mbox_resp4;
+__xdata __at(0xDDF9) uint8_t mbox_resp5;
+
+/* Mailbox command IDs */
+#define MBOX_CMD_STATUS         0x01  /* Read display status */
+#define MBOX_CMD_OUTPUT_MODE    0x02  /* Set PAL/NTSC output mode */
+#define MBOX_CMD_DAC_READ       0x03  /* Read DAC output levels */
+#define MBOX_CMD_DAC_WRITE      0x04  /* Write DAC configuration */
+#define MBOX_CMD_GPIO_READ      0x05  /* Read GPIO port state */
+#define MBOX_CMD_GPIO_WRITE     0x06  /* Write GPIO port state */
 __xdata __at(0xDE04) uint8_t xfer_reg;        /* Data transfer register */
 __xdata __at(0xDE05) uint8_t xfer_buf[4];     /* Transfer buffer (4 bytes via store_r4r5r6r7) */
 __xdata __at(0xDE09) uint8_t delay_arg;       /* Delay argument storage */
@@ -83,6 +106,7 @@ __xdata __at(0xF880) uint8_t video_dac_cfg;   /* Video DAC configuration */
 /* === Forward declarations === */
 void periodic_handler(void);
 void host_connection_check(void);
+void process_mailbox(void);
 
 
 /* fcn.0000c833 - Store R4:R5:R6:R7 to consecutive XDATA at DPTR
@@ -167,10 +191,15 @@ void init_hook2(void)                   /* 0xC943 */
 
         rom_host_detect();           /* LCALL 0x4E8D — check if host is sending */
 
-        /* Check for host reconfiguration command */
+        /* Check for legacy host reconfiguration command */
         if (host_mailbox == 0x5A) {
             host_mailbox = 0;
             rom_safe_reconfig();     /* LCALL 0x67D1 — disable IRQ, retune DAC, re-enable */
+        }
+
+        /* Check extended command mailbox */
+        if (mbox_cmd != 0) {
+            process_mailbox();
         }
 
         /* Maintain CVBS output filter settings */
@@ -346,6 +375,128 @@ void host_connection_check(void)        /* 0xC863 */
  * 0xC9C0: Read XDATA[R6:R7] into R7 — generic XDATA read helper
  * 0xC9C7: Set SP=0x5C, LJMP halt — watchdog/error reset handler
  * ================================================================ */
+
+/* ================================================================
+ * Host command mailbox processor
+ * Called from init_hook2 service loop every iteration.
+ *
+ * Host protocol (via HID 0xB5/0xB6 XDATA read/write):
+ *   1. Write params to 0xDDF1-0xDDF2
+ *   2. Write command to 0xDDF0 (triggers processing)
+ *   3. Poll 0xDDF3 until status == 0x02 (done) or 0xFF (error)
+ *   4. Read response from 0xDDF4-0xDDF9
+ *   5. Write 0x00 to 0xDDF0 to clear
+ * ================================================================ */
+void process_mailbox(void)
+{
+    uint8_t cmd = mbox_cmd;
+    uint8_t p0 = mbox_param0;
+    uint8_t p1 = mbox_param1;
+
+    switch (cmd) {
+
+    /* ── Display status ── */
+    case MBOX_CMD_STATUS:
+        mbox_resp0 = display_mode_hi;       /* IRAM[0x3F] */
+        mbox_resp1 = display_mode_lo;       /* IRAM[0x40] */
+        mbox_resp2 = output_param_hi;       /* IRAM[0x46] */
+        mbox_resp3 = output_param_lo;       /* IRAM[0x45] */
+        mbox_resp4 = host_connect_state;    /* IRAM[0x4B] */
+        mbox_resp5 = connect_event;         /* XDATA[0xDE0A] */
+        mbox_status = 0x02;
+        break;
+
+    /* ── Output mode switching (PAL/NTSC) ── */
+    case MBOX_CMD_OUTPUT_MODE:
+        /* p0 = mode:
+         *   0 = NTSC (stock default)
+         *   1 = PAL
+         * Triggers display reconfiguration via the event flag mechanism.
+         * The periodic handler picks up the flag and reconfigures the
+         * scaler, DAC, and output timing. */
+        if (p0 == 0) {
+            /* NTSC: 720x480 */
+            scaler_hsize = 0x60;
+            scaler_vtiming0 = 0x02;
+            scaler_vtiming1 = 0x03;
+            cvbs_timing = 0x0D;
+        } else if (p0 == 1) {
+            /* PAL: 720x576 — timing values TBD, using best guesses
+             * from datasheet and common PAL parameters.
+             * These may need tuning on real hardware. */
+            scaler_hsize = 0x60;
+            scaler_vtiming0 = 0x02;
+            scaler_vtiming1 = 0x04;     /* PAL has more vertical lines */
+            cvbs_timing = 0x0C;         /* Slightly different sync */
+        } else {
+            mbox_status = 0xFF;
+            goto done_mbox;
+        }
+        /* Trigger PLL/clock reconfiguration */
+        rom_clock_reconfig();
+        mbox_status = 0x02;
+        break;
+
+    /* ── DAC output level read ── */
+    case MBOX_CMD_DAC_READ:
+        /* Returns the 8-sample DAC readback from IRAM[0x55-0x5C]
+         * (populated by dac_snapshot_and_check when signal detected)
+         * and current DAC config registers */
+        mbox_resp0 = dac_readings[0];       /* First DAC sample */
+        mbox_resp1 = dac_readings[1];
+        mbox_resp2 = dac_readings[7];       /* Last DAC sample */
+        mbox_resp3 = video_dac_cfg;         /* F880: DAC config */
+        mbox_resp4 = dac_ctrl;              /* F005: DAC control */
+        mbox_resp5 = analog_mux;            /* F020: analog mux */
+        mbox_status = 0x02;
+        break;
+
+    /* ── DAC output level write ── */
+    case MBOX_CMD_DAC_WRITE:
+        /* p0 = register select: 0=F880 (DAC cfg), 1=F005 (DAC ctrl), 2=F020 (mux)
+         * p1 = new value */
+        switch (p0) {
+            case 0: video_dac_cfg = p1; break;
+            case 1: dac_ctrl = p1; break;
+            case 2: analog_mux = p1; break;
+            default: mbox_status = 0xFF; goto done_mbox;
+        }
+        mbox_status = 0x02;
+        break;
+
+    /* ── GPIO read ── */
+    case MBOX_CMD_GPIO_READ:
+        mbox_resp0 = P0;
+        mbox_resp1 = P2;
+        mbox_resp2 = P3;
+        mbox_resp3 = SFR_P3ALT;
+        mbox_resp4 = SFR_DAC;              /* DAC readback */
+        mbox_resp5 = SFR_93;               /* Analog gate state */
+        mbox_status = 0x02;
+        break;
+
+    /* ── GPIO write ── */
+    case MBOX_CMD_GPIO_WRITE:
+        /* p0 = port: 0=P0, 2=P2, 3=P3
+         * p1 = value */
+        switch (p0) {
+            case 0: P0 = p1; break;
+            case 2: P2 = p1; break;
+            case 3: P3 = p1; break;
+            default: mbox_status = 0xFF; goto done_mbox;
+        }
+        mbox_status = 0x02;
+        break;
+
+    default:
+        mbox_status = 0xFF;
+        break;
+    }
+
+done_mbox:
+    mbox_cmd = 0;
+}
+
 
 /* No main() — hook-driven firmware. Init hook 2 contains the
  * display service loop which runs for the device's lifetime. */
