@@ -264,10 +264,16 @@ _normal_hook_entry:
 	movx	@dptr, a
 
 	; --- Mailbox processing (cmd 2 only) ---
-	cjne	r7, #0x02, mbox_skip
+	cjne	r7, #0x02, mbox_skip_bounce
+	sjmp	mbox_start
+mbox_skip_bounce:
+	ljmp	mbox_skip
+mbox_start:
 	mov	dptr, #0xDE00
 	movx	a, @dptr
-	jz	mbox_skip
+	jnz	mbox_have_cmd
+	ljmp	mbox_skip
+mbox_have_cmd:
 	mov	r6, a		; R6 = mailbox command
 
 	cjne	a, #0x01, mbox_not_01
@@ -279,7 +285,7 @@ _normal_hook_entry:
 	movx	a, @dptr
 	mov	dptr, #0xDE05
 	movx	@dptr, a
-	sjmp	mbox_done
+	ljmp	mbox_done
 mbox_not_01:
 	cjne	a, #0x05, mbox_not_05
 	mov	dptr, #0xDE04
@@ -291,19 +297,101 @@ mbox_not_01:
 	inc	dptr
 	mov	a, 0xB0
 	movx	@dptr, a
-	sjmp	mbox_done
+	ljmp	mbox_done
 mbox_not_05:
+	mov	a, r6
+	cjne	a, #0x12, mbox_not_12
+	; cmd 0x12: I2C scan (scan 0x50-0x57, return bitmap in DE04)
+	clr	0xA8		; EX0 = 0
+	clr	0xAA		; EX1 = 0
+	mov	r0, #0x00	; bitmap
+	mov	r1, #0x00	; counter
+mbox_i2c_scan_loop:
+	lcall	0x6A8C		; i2c_start
+	mov	a, r1
+	add	a, #0x50
+	rl	a		; (0x50+i) << 1
+	mov	r7, a
+	lcall	0x4648		; i2c_write (R7=addr, C=ACK)
+	jnc	mbox_i2c_scan_nak
+	mov	a, r1
+	mov	r3, a		; save bit position
+	mov	a, #0x01
+mbox_i2c_scan_shift:
+	cjne	r3, #0x00, mbox_i2c_scan_shl
+	sjmp	mbox_i2c_scan_or
+mbox_i2c_scan_shl:
+	rl	a
+	dec	r3
+	sjmp	mbox_i2c_scan_shift
+mbox_i2c_scan_or:
+	orl	a, r0
+	mov	r0, a
+mbox_i2c_scan_nak:
+	lcall	0x6ABA		; i2c_stop
+	inc	r1
+	cjne	r1, #0x08, mbox_i2c_scan_loop
+	setb	0xA8		; EX0 = 1
+	setb	0xAA		; EX1 = 1
+	mov	dptr, #0xDE04
+	mov	a, r0
+	movx	@dptr, a
+	ljmp	mbox_done
+mbox_not_12:
+
+	mov	a, r6
+	cjne	a, #0x11, mbox_not_11
+	; cmd 0x11: I2C read register (param0=7-bit addr, param1=reg)
+	clr	0xA8
+	clr	0xAA
+	mov	dptr, #0xDE01
+	movx	a, @dptr
+	rl	a		; addr << 1 (write)
+	mov	r0, a		; R0 = addr<<1
+	mov	dptr, #0xDE02
+	movx	a, @dptr
+	mov	r1, a		; R1 = reg
+	lcall	0x6A8C		; i2c_start
+	mov	a, r0		; write address
+	mov	r7, a
+	lcall	0x4648
+	jnc	mbox_i2c_read_fail
+	mov	a, r1		; write register
+	mov	r7, a
+	lcall	0x4648
+	jnc	mbox_i2c_read_fail
+	lcall	0x6A8C		; repeated start
+	mov	a, r0
+	orl	a, #0x01	; addr | 1 (read)
+	mov	r7, a
+	lcall	0x4648
+	jnc	mbox_i2c_read_fail
+	setb	0x08		; NAK (single byte read)
+	lcall	0x4CF3		; i2c_read -> R7
+	mov	a, r7
+	sjmp	mbox_i2c_read_done
+mbox_i2c_read_fail:
+	mov	a, #0xFF
+mbox_i2c_read_done:
+	mov	dptr, #0xDE04
+	movx	@dptr, a
+	lcall	0x6ABA		; i2c_stop
+	setb	0xA8
+	setb	0xAA
+	ljmp	mbox_done
+mbox_not_11:
+
 	mov	a, r6
 	cjne	a, #0xFE, mbox_unknown
 	; cmd 0xFE: identify firmware
 	lcall	_mbox_identify
-	sjmp	mbox_done
+	ljmp	mbox_done
 
 mbox_unknown:
 	mov	dptr, #0xDE03
 	mov	a, #0xFF
 	movx	@dptr, a
-	sjmp	mbox_clear
+	ljmp	mbox_clear
 mbox_done:
 	mov	dptr, #0xDE03
 	mov	a, #0x02
@@ -782,8 +870,8 @@ regprog_check:
 	; Trampolines at fixed CODE addresses
 	; Padding fills from code end to each trampoline offset.
 	; ================================================================
-	; Pad from code end (+0x566) to mul16 trampoline (+0x612)
-	.ds	(0x612 - 0x566)
+	; Pad from code end (+0x5F5) to mul16 trampoline (+0x612)
+	.ds	(0x612 - 0x5F5)
 
 	; +0x612: mul16 trampoline (ROM calls LCALL 0xD212)
 	ljmp	_mul16
