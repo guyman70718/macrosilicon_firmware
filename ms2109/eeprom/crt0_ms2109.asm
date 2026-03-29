@@ -293,6 +293,13 @@ mbox_not_01:
 	movx	@dptr, a
 	sjmp	mbox_done
 mbox_not_05:
+	mov	a, r6
+	cjne	a, #0xFE, mbox_unknown
+	; cmd 0xFE: identify firmware
+	lcall	_mbox_identify
+	sjmp	mbox_done
+
+mbox_unknown:
 	mov	dptr, #0xDE03
 	mov	a, #0xFF
 	movx	@dptr, a
@@ -853,8 +860,8 @@ regprog_check2:
 	; Trampolines at fixed CODE addresses
 	; Padding fills from code end to each trampoline offset.
 	; ================================================================
-	; Pad from code end (+0x5F4) to first trampoline (+0x612)
-	.ds	(0x612 - 0x5F4)
+	; Pad from code end (+0x5FD) to first trampoline (+0x612)
+	.ds	(0x612 - 0x5FD)
 
 	; +0x612: mul16 trampoline (ROM calls LCALL 0xD212)
 	ljmp	_mul16
@@ -865,8 +872,30 @@ regprog_check2:
 	; +0x623: jump_table_engine trampoline
 	ljmp	_jump_table_engine
 
+	; +0x626: _mbox_identify fits in the gap before +0x67D
+_mbox_identify:
+	mov	dptr, #0xDE04
+	mov	a, #0x40	; '@'
+	movx	@dptr, a
+	inc	dptr
+	mov	a, #0x6B	; 'k'
+	movx	@dptr, a
+	inc	dptr
+	mov	a, #0x72	; 'r'
+	movx	@dptr, a
+	inc	dptr
+	mov	a, #0x61	; 'a'
+	movx	@dptr, a
+	inc	dptr
+	mov	a, #0x6C	; 'l'
+	movx	@dptr, a
+	inc	dptr
+	mov	a, #0x6E	; 'n'
+	movx	@dptr, a
+	ret
+
 	; padding to +0x67D
-	.ds	(0x67D - 0x626)
+	.ds	(0x67D - 0x641)
 
 	; +0x67D: math_func trampoline
 	ljmp	_math_func
