@@ -68,17 +68,29 @@
 
 ### Video passthrough (next step)
 
-The normal hook must call ROM dispatch at 0xD03A and cmd_handler at 0xD104
-for video pipeline setup. These are overlay addresses currently occupied by
-our code. Options:
-- [ ] Reimplement dispatch (0xD03A) — Keil jump table using our jump_table_engine
-- [ ] Reimplement cmd_handler (0xD104) — dispatches cmd 0x08/0x0C
-- [ ] Add trampolines at +0x43A and +0x504, rearrange code to keep those offsets clear
+Reimplement the ROM command dispatch inline in our normal hook. No trampolines
+at 0xD03A/0xD104 needed — just handle each command in our switch statement.
 
-The dispatch uses our jump_table_engine (0xD223, already implemented) with
-inline case table data. cmd_handler dispatches two commands: 0x08 (calls
-callback at 0xCC10 with R3:R2:R1) and 0x0C (programs FD02/FD03 timing regs).
-Both are finite and documented in boot_annotated.md.
+All command handlers are fully disassembled. Most are simple register writes.
+Four call helper functions which are also fully understood:
+
+| Cmd | Handler | Complexity |
+|-----|---------|------------|
+| 0x00 | Init video regs (C781,C783,C782,DE0C,F80B,F814) | Simple |
+| 0x01 | FE20=0x2A, call ROM 0x603C+0x5884, C697=2 | Calls ROM |
+| 0x02 | Call ROM 0x603C (via 0xD249 logic), conditional EFE8 setup | Calls ROM |
+| 0x08 | Set R3:R2:R1, LJMP callback | Simple |
+| 0x0A | F9AF=0x22 | Trivial |
+| 0x0B | F92C,E33C-E33F,FEBA register setup | Simple |
+| 0x0C | FD02/FD03 timing based on IRAM[0x36] (5 cases) | Medium |
+| 0x0E | Call ROM 0x603C+0x5884 (same as init_helper) | Calls ROM |
+| 0x0F | C54F,EFD0-EFD3 register clear | Simple |
+| 0x14 | Call video_adjust + delay | Calls ROM |
+
+Helper functions (all just call real ROM):
+- _video_adjust: 92 bytes, reads C6xx regs, calls video_config
+- _init_helper: calls ROM 0x603C, writes F814, calls ROM 0x5884
+- _delay_helper: writes DE0A=R7, calls ROM 0x69FB
 
 ### Future features
 
