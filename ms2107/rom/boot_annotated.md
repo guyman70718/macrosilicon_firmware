@@ -1,13 +1,9 @@
-# MS2107 Boot Sequence and Main Loop (from ROM decompilation)
-
-**Note**: The ROM dump (MS2107_ROM.BIN) was taken with ms-tools patches applied.
-Trampoline addresses (0xCD29, 0xCD38) are ms-tools artifacts — in the stock ROM,
-these would be direct calls to 0xC800, 0xC810, etc.
+# MS2107 Boot Sequence and Main Loop
 
 ## Reset Handler (0x5297)
 
 ```
-1. Clear IRAM (0x00-0x7F = 0)          — note: only 128 bytes, not 256 like MS9123
+1. Clear IRAM (0x00-0x7F = 0)
 2. Set SP = 0x55
 3. Process Keil C51 data init table at CODE:0x1BEE
 4. Call chip_init (0x5DA4)
@@ -98,18 +94,17 @@ The ROM calls the normal hook with these command IDs:
 | 13 | UVC processing | UVC output config |
 | 14 | UVC resolution | Resolution change handler |
 
-### IRQ Hook (0xC810)
+### IRQ Hook (0xC830, offset +0x30)
 
-Called from the **timer/ext1 interrupt handler** at 0x0006 (interrupt vector 0x0003):
+Called from the ext0 interrupt handler at 0x0006:
 
 ```c
 void ext0_interrupt_handler(void)       // 0x0006
 {
-    // Save all bank 0 registers
     save_R0_through_R7();
 
     if (XDATA[0xC7D8] & 0x08) {         // bit 3 = IRQ hook enable
-        func_0xC830();                   // EEPROM code +0x30
+        func_0xC830();                   // EEPROM code at +0x30
     } else {
         // Default: increment accumulators, clear F005
         accum_lo++; if (!accum_lo) accum_hi++;
@@ -118,44 +113,34 @@ void ext0_interrupt_handler(void)       // 0x0006
         XDATA[0xF005] = 0;
     }
 
-    // Restore all bank 0 registers
     restore_R0_through_R7();
 }
 ```
 
-**IMPORTANT**: The IRQ hook is at **+0x30** (0xC830), NOT +0x10 (0xC810).
-And it's controlled by **bit 3**, not bit 1.
-
-### Hook 3: USB-related (0xC820)
+### USB Processing Hook (0xC820, offset +0x20)
 
 ```c
 // Called from USB processing code
-if (XDATA[0xC7D8] & 0x04) {           // bit 2 = hook 3 enable
-    func_0xC820();                     // EEPROM code +0x20
+if (XDATA[0xC7D8] & 0x04) {           // bit 2 = hook enable
+    func_0xC820();                     // EEPROM code at +0x20
 }
 ```
 
 Called during USB endpoint processing with HADDR register context.
 
-### Hook Map (Corrected from ROM trace)
+### Hook Map
 
-| Bit | Hook | EEPROM Offset | XDATA Address | Purpose | Stock 0x03 |
-|-----|------|---------------|---------------|---------|-----------|
-| 0 | Normal | +0x00 | 0xC800 | Command dispatch (R7=cmd) | **Enabled** |
-| 1 | ??? | +0x10? | 0xC810? | Unknown (not found in ROM) | **Enabled** |
-| 2 | USB proc | +0x20 | 0xC820 | USB endpoint processing | Disabled |
-| 3 | IRQ | +0x30 | 0xC830 | Timer/ext0 interrupt | Disabled |
-| 4 | ??? | +0x40? | 0xC840? | Unknown | Disabled |
-| 5 | ??? | +0x50? | 0xC850? | Unknown | Disabled |
+| Bit | Hook | EEPROM Offset | XDATA Address | Purpose |
+|-----|------|---------------|---------------|---------|
+| 0 | Normal | +0x00 | 0xC800 | Command dispatch (R7=cmd) |
+| 1 | Unknown | +0x10 | 0xC810 | Not found in ROM trace |
+| 2 | USB proc | +0x20 | 0xC820 | USB endpoint processing |
+| 3 | IRQ | +0x30 | 0xC830 | Ext0/timer interrupt |
 
-**Note**: With stock hook flags 0x03 (bits 0,1), only the normal hook and bit-1 hook
-are enabled. The IRQ hook at +0x30 (bit 3) and USB hook at +0x20 (bit 2) are DISABLED
-in the stock firmware. This differs from the EEPROM firmware's self-description which
-claimed bit 1 = IRQ hook at 0xC810.
+Stock hook flags = 0x03 (bits 0,1 enabled). The IRQ hook (bit 3) and USB hook
+(bit 2) are disabled in the stock firmware.
 
 ### USB IRQ Handler (0x54AE)
-
-The USB interrupt handler is called from interrupt context:
 
 ```c
 void usb_irq_handler(void)              // 0x54AE
@@ -170,9 +155,8 @@ void usb_irq_handler(void)              // 0x54AE
 }
 ```
 
-This is NOT where the EEPROM hooks are called — it's a pure ROM handler
-for USB interrupts. The EEPROM IRQ hook at 0xC830 is called from the
-ext0/timer interrupt, not from USB.
+This is a ROM handler for USB interrupts. The EEPROM IRQ hook at 0xC830
+is called from the ext0/timer interrupt, not from USB.
 
 ## Key Function Map
 
@@ -183,7 +167,7 @@ ext0/timer interrupt, not from USB.
 | 0x6656 | eeprom_reload | Detect + load EEPROM code |
 | 0x6F47 | call_normal_hook_if_enabled | Check bit 0, dispatch to 0xC800 |
 | 0x6F9E | dispatch_to_eeprom_hook | Store cmd to C66B, call 0xC800 |
-| 0x54AE | usb_irq_handler | USB interrupt handler (ROM, no hooks) |
+| 0x54AE | usb_irq_handler | USB interrupt handler (ROM, no EEPROM hooks) |
 | 0x44BA | video_display_update | Video frame processing |
 | 0x5DFE | video_input_select | Select CVBS/S-Video/G1IN input |
 | 0x5EFF | video_adjust | Set brightness/contrast/saturation/hue |

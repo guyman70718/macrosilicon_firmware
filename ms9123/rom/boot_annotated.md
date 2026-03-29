@@ -1,4 +1,4 @@
-# MS9123 Boot Sequence and Main Loop (from ROM decompilation)
+# MS9123 Boot Sequence and Main Loop
 
 ## Reset Handler (0x40EB)
 
@@ -6,16 +6,15 @@
 1. Clear all IRAM (0x00-0xFF = 0)
 2. Set SP = 0x5C
 3. Process Keil C51 data initialization table at CODE:0x12AF
-   - Initializes IRAM, XDATA, and bit variables from compressed ROM data
 4. Call main_init (0x48DB)
 ```
 
-This is a standard Keil C51 startup sequence. The init table at 0x12AF contains
-encoded instructions for initializing global variables to their compiled defaults.
+Standard Keil C51 startup. The init table at 0x12AF contains encoded
+instructions for initializing global variables to their compiled defaults.
 
 ## Main Init (0x48DB)
 
-`param_1` is loaded from EEPROM header — it's the hook config byte (EEPROM[0x04]).
+`hook_config` is loaded from EEPROM header byte [4] (mirrored at XDATA[0xC617]).
 
 ```c
 void main_init(uint8_t hook_config)   // 0x48DB
@@ -24,13 +23,13 @@ void main_init(uint8_t hook_config)   // 0x48DB
     usb_controller_init();             // 0x4FE9 — USB controller initialization
     eeprom_detect_and_load();          // 0x4F3C — detect EEPROM, load code to RAM
 
-    // === Init Hook 1: GPIO/config setup (bit 2 of hook_config) ===
+    // === Init Hook 1: GPIO/config setup (bit 2) ===
     read_hook_enable();                // 0x7360 — reads XDATA[0xC617] into ACC
     if (hook_config & 0x04) {          // bit 2 = init hook 1 enable
         EEPROM_HOOK_1();               // thunk to 0xC843 (EEPROM offset +0x13)
     }
 
-    // === Optional: unknown init (bit 0 of hook_config) ===
+    // === Optional ROM-internal init (bit 0) ===
     read_hook_enable();                // 0x7360
     if (hook_config & 0x01) {          // bit 0
         unknown_0x73A6();              // 0x73A6
@@ -41,12 +40,11 @@ void main_init(uint8_t hook_config)   // 0x48DB
     setup_display_timers();            // 0x3EAF
     setup_display_pipeline();          // thunk to 0x3E1C
 
-    // === Init Hook 2: HW init + display loop (bit 3 of hook_config) ===
+    // === Init Hook 2: HW init + display loop (bit 3) ===
     read_hook_enable();                // 0x7360
     if (hook_config & 0x08) {          // bit 3 = init hook 2 enable
         EEPROM_HOOK_2();               // thunk to 0xC943 (EEPROM offset +0x10 target)
-        // NOTE: On stock firmware, init hook 2 NEVER RETURNS
-        // (it contains the display service loop)
+        // Stock firmware: init hook 2 never returns (contains display service loop)
     }
 
     // If init hook 2 didn't take over, ROM runs its own display loop:
@@ -74,33 +72,28 @@ void main_init(uint8_t hook_config)   // 0x48DB
 
         usb_frame_manage();            // 0x3A5C — process incoming USB frames
 
-        // === Periodic Hook (bit 4 of hook_config) ===
-        read_hook_enable();            // 0x7360 — reads XDATA[0xC617]
+        // === Periodic Hook (bit 4) ===
+        read_hook_enable();            // 0x7360
         if (hook_config & 0x10) {      // bit 4 = periodic hook enable
             EEPROM_HOOK_PERIODIC();    // 0xC850 — EEPROM offset +0x20
-            // NOTE: This is at +0x20, not +0x30!
         }
     }
 }
 ```
 
-## Hook Architecture (Corrected from ROM trace)
+## Hook Architecture
 
 The EEPROM header byte [4] (XDATA[0xC617]) controls hook enables:
 
 | Bit | Hook | EEPROM Offset | XDATA Address | Purpose |
 |-----|------|---------------|---------------|---------|
 | 2   | Init 1 | +0x13 (via LJMP at +0x00) | 0xC843 | GPIO setup, one-time config |
-| 0   | Unknown | N/A | 0x73A6+0x5736 | ROM-internal init (not EEPROM hook) |
-| 3   | Init 2 | +0x10 target | 0xC943 | HW init + display loop (never returns) |
-| 4   | Periodic | +0x20 | 0xC850 | USB IRQ handler (display reconfig) |
-| 5   | USB IRQ | +0x30 | 0xC860 | Called from USB interrupt (0x4D37) |
+| 0   | ROM init | N/A | 0x73A6+0x5736 | ROM-internal init (not an EEPROM hook) |
+| 3   | Init 2 | +0x10 target | 0xC943 | HW init + display service loop (never returns) |
+| 4   | Periodic | +0x20 | 0xC850 | Called from main display loop |
+| 5   | USB IRQ | +0x30 | 0xC860 | Called from USB interrupt handler (0x4D37) |
 
-**IMPORTANT CORRECTION**: The periodic hook in the main loop calls **0xC850** (offset +0x20),
-not 0xC860 (offset +0x30). Our earlier analysis of the USB IRQ handler found the hook at
-0xC860 (bit 5), which is a DIFFERENT hook called from the USB interrupt context.
-
-The stock MS9123 EEPROM header byte [4] = 0x2C = 0b00101100:
+Stock MS9123 EEPROM header byte [4] = 0x2C = 0b00101100:
 - Bit 2 = set (init hook 1 enabled)
 - Bit 3 = set (init hook 2 enabled)
 - Bit 5 = set (USB IRQ hook enabled)
@@ -129,7 +122,7 @@ The stock MS9123 EEPROM header byte [4] = 0x2C = 0b00101100:
 | 0x53A9 | i2c_eeprom_read | I2C read (R2:R1=dest, R5=count, R7:R6=offset) |
 | 0x6AB8 | i2c_start | I2C START condition |
 | 0x46BC | i2c_send_byte | I2C send byte |
-| 0x4D1C | usb_handler_main | USB interrupt dispatch (calls periodic hook) |
+| 0x4D1C | usb_handler_main | USB interrupt dispatch |
 | 0x5971 | usb_isr | USB interrupt service routine |
 
 ## EEPROM Code Map (loaded to XDATA 0xC830+)
