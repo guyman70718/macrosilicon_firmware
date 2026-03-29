@@ -92,9 +92,18 @@ Helper functions (all just call real ROM):
 - _init_helper: calls ROM 0x603C, writes F814, calls ROM 0x5884
 - _delay_helper: writes DE0A=R7, calls ROM 0x69FB
 
+### Known differences from stock
+
+- No color bars on no-signal (shows black instead). Hardware register EFE0
+  bit 6 never sets, preventing test pattern generation. Likely requires
+  understanding the ROM's pre-hook init sequence for HDMI detect state.
+  Cosmetic only — actual HDMI capture works correctly.
+
 ### Future features
 
 - [ ] I2C master (ROM wrappers ready: start/stop/write/read)
+- [ ] GPIO write command
+- [ ] Color bars / test pattern on no-signal
 - [ ] Host-side Python tool for mailbox protocol
 
 ### Recovery notes
