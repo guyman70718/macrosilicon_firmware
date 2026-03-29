@@ -463,60 +463,33 @@ cmd_0c_state_ok:
 	ljmp	cmd_done
 cmd_0c_range_ok:
 
+	; Table-driven timing: FD03, FD02, F807 from IRAM[0x36] (1-5)
+	; Table: [fd03_val, fd02_val, f807_val] per entry (0=skip F807)
 	mov	a, 0x36
-	cjne	a, #0x01, cmd_0c_not1
+	jz	cmd_0c_timing_done
+	dec	a			; 1-based to 0-based
+	mov	r3, a		; save index
+	; FD03 value
+	mov	dptr, #cmd_0c_table
+	movc	a, @a+dptr
 	mov	dptr, #0xFD03
-	mov	a, #0x09
 	movx	@dptr, a
+	; FD02 value
+	mov	a, r3
+	add	a, #0x05
+	mov	dptr, #cmd_0c_table
+	movc	a, @a+dptr
 	mov	dptr, #0xFD02
-	mov	a, #0x42
 	movx	@dptr, a
-cmd_0c_not1:
-	mov	a, 0x36
-	cjne	a, #0x02, cmd_0c_not2
-	mov	dptr, #0xFD03
-	mov	a, #0x08
-	movx	@dptr, a
-	mov	dptr, #0xFD02
-	mov	a, #0x55
-	movx	@dptr, a
-cmd_0c_not2:
-	mov	a, 0x36
-	cjne	a, #0x03, cmd_0c_not3
-	mov	dptr, #0xFD03
-	mov	a, #0x07
-	movx	@dptr, a
-	mov	dptr, #0xFD02
-	mov	a, #0x25
-	movx	@dptr, a
+	; F807 value (0 = skip)
+	mov	a, r3
+	add	a, #0x0A
+	mov	dptr, #cmd_0c_table
+	movc	a, @a+dptr
+	jz	cmd_0c_timing_done
 	mov	dptr, #0xF807
-	mov	a, #0x0A
 	movx	@dptr, a
-cmd_0c_not3:
-	mov	a, 0x36
-	cjne	a, #0x04, cmd_0c_not4
-	mov	dptr, #0xFD03
-	mov	a, #0x06
-	movx	@dptr, a
-	mov	dptr, #0xFD02
-	mov	a, #0x83
-	movx	@dptr, a
-	mov	dptr, #0xF807
-	mov	a, #0x08
-	movx	@dptr, a
-cmd_0c_not4:
-	mov	a, 0x36
-	cjne	a, #0x05, cmd_0c_not5
-	mov	dptr, #0xFD03
-	mov	a, #0x06
-	movx	@dptr, a
-	mov	dptr, #0xFD02
-	mov	a, #0x49
-	movx	@dptr, a
-	mov	dptr, #0xF807
-	mov	a, #0x09
-	movx	@dptr, a
-cmd_0c_not5:
+cmd_0c_timing_done:
 
 	; Tail check: C6B5:C6B6 >= 0x0BB8?
 	setb	c
@@ -708,19 +681,30 @@ va_call_vc:
 
 
 	; ================================================================
-	; Register programming (inline mul16, reads reg_table at 0xCE52)
+	; Register programming (factored: shared inner loop)
+	; IRAM 0x0B = inner limit, IRAM 0x0C = outer end
 	; ================================================================
 _irq_register_program:
 	clr	a
 	mov	r7, a
 	mov	r6, a
-regprog_outer1:
+	; Phase 1: 5 outer x 25 inner
+	mov	0x0D, #0x19	; inner limit = 25
+	mov	0x0E, #0x05	; outer end = 5
+	lcall	_regprog_phase
+	; Phase 2: 6 outer x 4 inner (R7:R6 continues from 5)
+	mov	0x0D, #0x04	; inner limit = 4
+	mov	0x0E, #0x0B	; outer end = 11
+	; fall through
+
+_regprog_phase:
+regprog_outer:
 	clr	a
 	mov	dptr, #0xDE08
 	movx	@dptr, a
 	inc	dptr
 	movx	@dptr, a
-regprog_inner1:
+regprog_inner:
 	mov	dptr, #0xDE08
 	movx	a, @dptr
 	mov	r4, a
@@ -728,11 +712,11 @@ regprog_inner1:
 	movx	a, @dptr
 	mov	r5, a
 	clr	c
-	subb	a, #0x19
+	subb	a, 0x0D	; compare vs inner limit
 	mov	a, r4
 	xrl	a, #0x80
 	subb	a, #0x80
-	jnc	regprog_exit1
+	jnc	regprog_exit
 	mov	a, r5
 	mov	dptr, #0xCE52
 	movc	a, @a+dptr
@@ -743,6 +727,7 @@ regprog_inner1:
 	inc	dptr
 	movx	a, @dptr
 	mov	r3, a
+	; inline mul16: DPTR = R6:R7 * 0x2E
 	mov	0x82, r7
 	mov	0x83, r6
 	mov	a, #0x2E
@@ -755,6 +740,7 @@ regprog_inner1:
 	mul	ab
 	add	a, 0x83
 	mov	0x83, a
+	; + counter + 0xC0BF
 	mov	a, 0x82
 	add	a, r3
 	mov	0x82, a
@@ -769,101 +755,26 @@ regprog_inner1:
 	mov	0x83, a
 	mov	a, r5
 	movx	@dptr, a
+	; increment inner counter
 	mov	dptr, #0xDE09
 	movx	a, @dptr
 	inc	a
 	movx	@dptr, a
-	jnz	regprog_inner1
+	jnz	regprog_inner
 	mov	dptr, #0xDE08
 	movx	a, @dptr
 	inc	a
 	movx	@dptr, a
-	sjmp	regprog_inner1
-regprog_exit1:
+	sjmp	regprog_inner
+regprog_exit:
 	inc	r7
-	cjne	r7, #0x00, regprog_check1
+	cjne	r7, #0x00, regprog_check
 	inc	r6
-regprog_check1:
+regprog_check:
 	mov	a, r7
-	xrl	a, #0x05
+	xrl	a, 0x0E	; compare vs outer end
 	orl	a, r6
-	jnz	regprog_outer1
-	mov	r6, #0x00
-	mov	r7, #0x05
-regprog_outer2:
-	clr	a
-	mov	dptr, #0xDE08
-	movx	@dptr, a
-	inc	dptr
-	movx	@dptr, a
-regprog_inner2:
-	mov	dptr, #0xDE08
-	movx	a, @dptr
-	mov	r4, a
-	inc	dptr
-	movx	a, @dptr
-	mov	r5, a
-	clr	c
-	subb	a, #0x04
-	mov	a, r4
-	xrl	a, #0x80
-	subb	a, #0x80
-	jnc	regprog_exit2
-	mov	a, r5
-	mov	dptr, #0xCE52
-	movc	a, @a+dptr
-	mov	r5, a
-	mov	dptr, #0xDE08
-	movx	a, @dptr
-	mov	r2, a
-	inc	dptr
-	movx	a, @dptr
-	mov	r3, a
-	mov	0x82, r7
-	mov	0x83, r6
-	mov	a, #0x2E
-	mov	0xF0, a
-	xch	a, 0x82
-	mul	ab
-	xch	a, 0x82
-	xch	a, 0xF0
-	xch	a, 0x83
-	mul	ab
-	add	a, 0x83
-	mov	0x83, a
-	mov	a, 0x82
-	add	a, r3
-	mov	0x82, a
-	mov	a, 0x83
-	addc	a, r2
-	mov	0x83, a
-	mov	a, 0x82
-	add	a, #0xBF
-	mov	0x82, a
-	mov	a, 0x83
-	addc	a, #0xC0
-	mov	0x83, a
-	mov	a, r5
-	movx	@dptr, a
-	mov	dptr, #0xDE09
-	movx	a, @dptr
-	inc	a
-	movx	@dptr, a
-	jnz	regprog_inner2
-	mov	dptr, #0xDE08
-	movx	a, @dptr
-	inc	a
-	movx	@dptr, a
-	sjmp	regprog_inner2
-regprog_exit2:
-	inc	r7
-	cjne	r7, #0x00, regprog_check2
-	inc	r6
-regprog_check2:
-	mov	a, r7
-	xrl	a, #0x0B
-	orl	a, r6
-	jnz	regprog_outer2
+	jnz	regprog_outer
 	ret
 
 
@@ -871,9 +782,8 @@ regprog_check2:
 	; Trampolines at fixed CODE addresses
 	; Padding fills from code end to each trampoline offset.
 	; ================================================================
-	; Pad from code end (+0x609) to first trampoline (+0x612)
-	; Pad from code end (+0x60C) to mul16 trampoline (+0x612)
-	.ds	(0x612 - 0x60C)
+	; Pad from code end (+0x566) to mul16 trampoline (+0x612)
+	.ds	(0x612 - 0x566)
 
 	; +0x612: mul16 trampoline (ROM calls LCALL 0xD212)
 	ljmp	_mul16
@@ -884,7 +794,14 @@ regprog_check2:
 	; +0x623: jump_table_engine trampoline
 	ljmp	_jump_table_engine
 
-	; +0x626: functions in the trampoline gap before +0x67D
+	; +0x626: functions and data in the trampoline gap before +0x67D
+
+	; cmd 0x0C timing table: [fd03 x5] [fd02 x5] [f807 x5]
+	; Index 0-4 = IRAM[0x36] values 1-5
+cmd_0c_table:
+	.db	0x09, 0x08, 0x07, 0x06, 0x06	; FD03 values
+	.db	0x42, 0x55, 0x25, 0x83, 0x49	; FD02 values
+	.db	0x00, 0x00, 0x0A, 0x08, 0x09	; F807 values (0=skip)
 
 	; Set USB PID (override ROM default 0x2109)
 	; Change the two immediate values below to set a custom PID.
@@ -921,7 +838,7 @@ _mbox_identify:
 	ret
 
 	; padding to +0x67D
-	.ds	(0x67D - 0x64C)
+	.ds	(0x67D - 0x65B)
 
 	; +0x67D: math_func trampoline
 	ljmp	_math_func
