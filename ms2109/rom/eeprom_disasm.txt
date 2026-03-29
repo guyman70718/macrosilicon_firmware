@@ -1,0 +1,1009 @@
+  CC00: 90 DE 0B     MOV   DPTR,#0xDE0B
+  CC03: EF           MOV   A,R7
+  CC04: F0           MOVX  @DPTR,A
+  CC05: 12 D0 3A     LCALL 0xD03A
+  CC08: 90 DE 0B     MOV   DPTR,#0xDE0B
+  CC0B: E0           MOVX  A,@DPTR
+  CC0C: FF           MOV   R7,A
+  CC0D: 02 D1 04     LJMP  0xD104
+  CC10: 90 DE 05     MOV   DPTR,#0xDE05
+  CC13: EB           MOV   A,R3
+  CC14: F0           MOVX  @DPTR,A
+  CC15: A3           INC   DPTR
+  CC16: EA           MOV   A,R2
+  CC17: F0           MOVX  @DPTR,A
+  CC18: A3           INC   DPTR
+  CC19: E9           MOV   A,R1
+  CC1A: F0           MOVX  @DPTR,A
+  CC1B: 12 63 45     LCALL 0x6345
+  CC1E: 22           RET
+  CC1F: FF           MOV   R7,A
+  CC20: E5 33        MOV   A,0x33
+  CC22: 30 E2 09     JNB   ACC.2,0xCC2E
+  CC25: 53 33 FB     ANL   0x33,#0xFB
+  CC28: 12 D2 C1     LCALL 0xD2C1
+  CC2B: 12 CF 5E     LCALL 0xCF5E
+  CC2E: E5 32        MOV   A,0x32
+  CC30: 20 E3 03     JB    ACC.3,0xCC36
+  CC33: 02 CD 51     LJMP  0xCD51
+  CC36: E5 36        MOV   A,0x36
+  CC38: C3           CLR   CY
+  CC39: 94 06        SUBB  A,#0x06
+  CC3B: 40 03        JC    0xCC40
+  CC3D: 02 CD 51     LJMP  0xCD51
+  CC40: E5 37        MOV   A,0x37
+  CC42: 64 3C        XRL   A,#0x3C
+  CC44: 60 03        JZ    0xCC49
+  CC46: 02 CD 51     LJMP  0xCD51
+  CC49: 53 32 F7     ANL   0x32,#0xF7
+  CC4C: E5 30        MOV   A,0x30
+  CC4E: 20 E1 04     JB    ACC.1,0xCC55
+  CC51: 7F 01        MOV   R7,#0x01
+  CC53: 80 02        SJMP  0xCC57
+  CC55: 7F 00        MOV   R7,#0x00
+  CC57: E5 38        MOV   A,0x38
+  CC59: B4 01 04     CJNE  A,#0x01,0xCC60
+  CC5C: 7E 01        MOV   R6,#0x01
+  CC5E: 80 02        SJMP  0xCC62
+  CC60: 7E 00        MOV   R6,#0x00
+  CC62: EE           MOV   A,R6
+  CC63: 5F           ANL   A,R7
+  CC64: 60 08        JZ    0xCC6E
+  CC66: 90 DE 0C     MOV   DPTR,#0xDE0C
+  CC69: 74 01        MOV   A,#0x01
+  CC6B: F0           MOVX  @DPTR,A
+  CC6C: 80 2E        SJMP  0xCC9C
+  CC6E: E5 38        MOV   A,0x38
+  CC70: 70 14        JNZ   0xCC86
+  CC72: 90 DE 0C     MOV   DPTR,#0xDE0C
+  CC75: E0           MOVX  A,@DPTR
+  CC76: B4 01 0D     CJNE  A,#0x01,0xCC86
+  CC79: E5 30        MOV   A,0x30
+  CC7B: 30 E1 08     JNB   ACC.1,0xCC86
+  CC7E: 75 38 02     MOV   0x38,#0x02
+  CC81: 74 02        MOV   A,#0x02
+  CC83: F0           MOVX  @DPTR,A
+  CC84: 80 16        SJMP  0xCC9C
+  CC86: E5 38        MOV   A,0x38
+  CC88: B4 02 11     CJNE  A,#0x02,0xCC9C
+  CC8B: 90 DE 0C     MOV   DPTR,#0xDE0C
+  CC8E: E0           MOVX  A,@DPTR
+  CC8F: B4 02 0A     CJNE  A,#0x02,0xCC9C
+  CC92: E5 30        MOV   A,0x30
+  CC94: 20 E1 05     JB    ACC.1,0xCC9C
+  CC97: E4           CLR   A
+  CC98: F0           MOVX  @DPTR,A
+  CC99: 75 38 03     MOV   0x38,#0x03
+  CC9C: 75 93 03     MOV   0x93,#0x03
+  CC9F: D2 80        SETB  0x80.0
+  CCA1: E5 30        MOV   A,0x30
+  CCA3: 30 E1 41     JNB   ACC.1,0xCCE7
+  CCA6: 53 30 FD     ANL   0x30,#0xFD
+  CCA9: E5 30        MOV   A,0x30
+  CCAB: 20 E6 06     JB    ACC.6,0xCCB4
+  CCAE: 90 F1 FC     MOV   DPTR,#0xF1FC
+  CCB1: E0           MOVX  A,@DPTR
+  CCB2: 60 1A        JZ    0xCCCE
+  CCB4: 53 30 BF     ANL   0x30,#0xBF
+  CCB7: 90 F0 00     MOV   DPTR,#0xF000
+  CCBA: E0           MOVX  A,@DPTR
+  CCBB: 44 02        ORL   A,#0x02
+  CCBD: F0           MOVX  @DPTR,A
+  CCBE: 90 F1 FF     MOV   DPTR,#0xF1FF
+  CCC1: E4           CLR   A
+  CCC2: F0           MOVX  @DPTR,A
+  CCC3: 90 F1 FC     MOV   DPTR,#0xF1FC
+  CCC6: 04           INC   A
+  CCC7: F0           MOVX  @DPTR,A
+  CCC8: 12 D2 BD     LCALL 0xD2BD
+  CCCB: 75 38 01     MOV   0x38,#0x01
+  CCCE: 85 BC 1B     MOV   0x1B,0xBC
+  CCD1: 85 BD 1C     MOV   0x1C,0xBD
+  CCD4: 85 BE 1D     MOV   0x1D,0xBE
+  CCD7: 85 BF 1E     MOV   0x1E,0xBF
+  CCDA: E5 30        MOV   A,0x30
+  CCDC: 30 E0 05     JNB   ACC.0,0xCCE4
+  CCDF: 53 30 FE     ANL   0x30,#0xFE
+  CCE2: 80 03        SJMP  0xCCE7
+  CCE4: 43 30 01     ORL   0x30,#0x01
+  CCE7: E5 38        MOV   A,0x38
+  CCE9: B4 01 0C     CJNE  A,#0x01,0xCCF8
+  CCEC: 90 F1 FB     MOV   DPTR,#0xF1FB
+  CCEF: E0           MOVX  A,@DPTR
+  CCF0: B4 03 0D     CJNE  A,#0x03,0xCD00
+  CCF3: E4           CLR   A
+  CCF4: F5 38        MOV   0x38,A
+  CCF6: 80 05        SJMP  0xCCFD
+  CCF8: E5 38        MOV   A,0x38
+  CCFA: B4 03 03     CJNE  A,#0x03,0xCD00
+  CCFD: 43 30 02     ORL   0x30,#0x02
+  CD00: 90 F1 FA     MOV   DPTR,#0xF1FA
+  CD03: E0           MOVX  A,@DPTR
+  CD04: 60 06        JZ    0xCD0C
+  CD06: 74 01        MOV   A,#0x01
+  CD08: F0           MOVX  @DPTR,A
+  CD09: 43 30 40     ORL   0x30,#0x40
+  CD0C: 75 AE 0C     MOV   0xAE,#0x0C
+  CD0F: 85 30 AE     MOV   0xAE,0x30
+  CD12: 85 1B AE     MOV   0xAE,0x1B
+  CD15: 85 1C AE     MOV   0xAE,0x1C
+  CD18: 85 1D AE     MOV   0xAE,0x1D
+  CD1B: 85 1E AE     MOV   0xAE,0x1E
+  CD1E: 85 BC AE     MOV   0xAE,0xBC
+  CD21: 85 BD AE     MOV   0xAE,0xBD
+  CD24: 85 BE AE     MOV   0xAE,0xBE
+  CD27: 85 BF AE     MOV   0xAE,0xBF
+  CD2A: 85 9E AE     MOV   0xAE,0x9E
+  CD2D: 85 9F AE     MOV   0xAE,0x9F
+  CD30: E5 38        MOV   A,0x38
+  CD32: B4 02 0E     CJNE  A,#0x02,0xCD43
+  CD35: 90 DE 0C     MOV   DPTR,#0xDE0C
+  CD38: E0           MOVX  A,@DPTR
+  CD39: B4 02 07     CJNE  A,#0x02,0xCD43
+  CD3C: 75 AE FF     MOV   0xAE,#0xFF
+  CD3F: 75 AE D8     MOV   0xAE,#0xD8
+  CD42: 22           RET
+  CD43: E5 38        MOV   A,0x38
+  CD45: B4 03 09     CJNE  A,#0x03,0xCD51
+  CD48: E4           CLR   A
+  CD49: F5 38        MOV   0x38,A
+  CD4B: 75 AE FF     MOV   0xAE,#0xFF
+  CD4E: 75 AE D9     MOV   0xAE,#0xD9
+  CD51: 22           RET
+  CD52: 00           NOP
+  CD53: FF           MOV   R7,A
+  CD54: FF           MOV   R7,A
+  CD55: FF           MOV   R7,A
+  CD56: FF           MOV   R7,A
+  CD57: FF           MOV   R7,A
+  CD58: FF           MOV   R7,A
+  CD59: 00           NOP
+  CD5A: 21 57        AJMP  0xC957
+  CD5C: 36           ADDC  A,@R0
+  CD5D: 18           DEC   R0
+  CD5E: BD E9 02     CJNE  R5,#0xE9,0xCD63
+  CD61: 00           NOP
+  CD62: 25 1D        ADD   A,0x1D
+  CD64: 01 03        AJMP  0xC803
+  CD66: 80 35        SJMP  0xCD9D
+  CD68: 1D           DEC   R5
+  CD69: 78 22        MOV   R0,#0x22
+  CD6B: EE           MOV   A,R6
+  CD6C: 91 A3        ACALL 0xCCA3
+  CD6E: 54 4C        ANL   A,#0x4C
+  CD70: 99           DB    0x99
+  CD71: 26           ADD   A,@R0
+  CD72: 0F           INC   R7
+  CD73: 50 54        JNC   0xCDC9
+  CD75: 21 0F        AJMP  0xC90F
+  CD77: 00           NOP
+  CD78: 81 00        AJMP  0xCC00
+  CD7A: 81 40        AJMP  0xCC40
+  CD7C: 81 80        AJMP  0xCC80
+  CD7E: 90 40 95     MOV   DPTR,#0x4095
+  CD81: 00           NOP
+  CD82: 01 01        AJMP  0xC801
+  CD84: A9           DB    0xA9
+  CD85: 40 B3        JC    0xCD3A
+  CD87: 00           NOP
+  CD88: 01 1D        AJMP  0xC81D
+  CD8A: 00           NOP
+  CD8B: 72           DB    0x72
+  CD8C: 51 D0        ACALL 0xCAD0
+  CD8E: 1E           DEC   R6
+  CD8F: 20 6E 28     JB    0x2D.6,0xCDBA
+  CD92: 55 00        ANL   A,0x00
+  CD94: 0F           INC   R7
+  CD95: 48           ORL   A,R0
+  CD96: 42 00 00     ORL   0x00,A
+  CD99: 1E           DEC   R6
+  CD9A: 0E           INC   R6
+  CD9B: 1F           DEC   R7
+  CD9C: 00           NOP
+  CD9D: 80 51        SJMP  0xCDF0
+  CD9F: 00           NOP
+  CDA0: 1E           DEC   R6
+  CDA1: 30 40 80     JNB   0x28.0,0xCD24
+  CDA4: 37           ADDC  A,@R1
+  CDA5: 00           NOP
+  CDA6: 0F           INC   R7
+  CDA7: 48           ORL   A,R0
+  CDA8: 42 00 00     ORL   0x00,A
+  CDAB: 1C           DEC   R4
+  CDAC: 00           NOP
+  CDAD: 00           NOP
+  CDAE: 00           NOP
+  CDAF: 10 00 00     JBC   0x20.0,0xCDB2
+  CDB2: 00           NOP
+  CDB3: 00           NOP
+  CDB4: 00           NOP
+  CDB5: 00           NOP
+  CDB6: 00           NOP
+  CDB7: 00           NOP
+  CDB8: 00           NOP
+  CDB9: 00           NOP
+  CDBA: 00           NOP
+  CDBB: 00           NOP
+  CDBC: 00           NOP
+  CDBD: 00           NOP
+  CDBE: 00           NOP
+  CDBF: 00           NOP
+  CDC0: 00           NOP
+  CDC1: FC           MOV   R4,A
+  CDC2: 00           NOP
+  CDC3: 4D           ORL   A,R5
+  CDC4: 41 43        AJMP  0xCA43
+  CDC6: 52 4F 53     ANL   0x4F,A
+  CDC9: 49           ORL   A,R1
+  CDCA: 4C           ORL   A,R4
+  CDCB: 49           ORL   A,R1
+  CDCC: 43 4F 4E     ORL   0x4F,#0x4E
+  CDCF: 0A           INC   R2
+  CDD0: 01 19        AJMP  0xC819
+  CDD2: 02 03 34     LJMP  0x0334
+  CDD5: F1 52        ACALL 0xCF52
+  CDD7: 02 11 13     LJMP  0x1113
+  CDDA: 84           DIV   AB
+  CDDB: 1F           DEC   R7
+  CDDC: 10 03 12     JBC   0x20.3,0xCDF1
+  CDDF: 06           INC   @R0
+  CDE0: 15 07        DEC   0x07
+  CDE2: 16           DEC   @R0
+  CDE3: 05 14        INC   0x14
+  CDE5: 5E           ANL   A,R6
+  CDE6: 5F           ANL   A,R7
+  CDE7: 63 64 23     XRL   0x64,#0x23
+  CDEA: 09           INC   R1
+  CDEB: 7F 07        MOV   R7,#0x07
+  CDED: 83           MOVC  A,@A+PC
+  CDEE: 01 00        AJMP  0xC800
+  CDF0: 00           NOP
+  CDF1: 6E           XRL   A,R6
+  CDF2: 03           RR    A
+  CDF3: 0C           INC   R4
+  CDF4: 00           NOP
+  CDF5: 10 00 00     JBC   0x20.0,0xCDF8
+  CDF8: 3C           ADDC  A,R4
+  CDF9: 20 00 80     JB    0x20.0,0xCD7C
+  CDFC: 01 02        AJMP  0xC802
+  CDFE: 03           RR    A
+  CDFF: 04           INC   A
+  CE00: E5 0E        MOV   A,0x0E
+  CE02: 61 60        AJMP  0xCB60
+  CE04: 65 66        XRL   A,0x66
+  CE06: 66           XRL   A,@R0
+  CE07: 21 50        AJMP  0xC950
+  CE09: B0 51        ANL   C,/0x2A.1
+  CE0B: 00           NOP
+  CE0C: 1B           DEC   R3
+  CE0D: 30 40 70     JNB   0x28.0,0xCE80
+  CE10: 36           ADDC  A,@R0
+  CE11: 00           NOP
+  CE12: 0F           INC   R7
+  CE13: 48           ORL   A,R0
+  CE14: 42 00 00     ORL   0x00,A
+  CE17: 1E           DEC   R6
+  CE18: 66           XRL   A,@R0
+  CE19: 21 56        AJMP  0xC956
+  CE1B: AA           DB    0xAA
+  CE1C: 51 00        ACALL 0xCA00
+  CE1E: 1E           DEC   R6
+  CE1F: 30 46 8F     JNB   0x28.6,0xCDB1
+  CE22: 33           RLC   A
+  CE23: 00           NOP
+  CE24: 0F           INC   R7
+  CE25: 48           ORL   A,R0
+  CE26: 42 00 00     ORL   0x00,A
+  CE29: 1E           DEC   R6
+  CE2A: 8C 0A        MOV   0x0A,R4
+  CE2C: D0 8A        POP   0x8A
+  CE2E: 20 E0 2D     JB    ACC.0,0xCE5E
+  CE31: 10 10 3E     JBC   0x22.0,0xCE72
+  CE34: 96           SUBB  A,@R0
+  CE35: 00           NOP
+  CE36: 10 09 00     JBC   0x21.1,0xCE39
+  CE39: 00           NOP
+  CE3A: 00           NOP
+  CE3B: 18           DEC   R0
+  CE3C: 00           NOP
+  CE3D: 00           NOP
+  CE3E: 00           NOP
+  CE3F: 00           NOP
+  CE40: 00           NOP
+  CE41: 00           NOP
+  CE42: 00           NOP
+  CE43: 00           NOP
+  CE44: 00           NOP
+  CE45: 00           NOP
+  CE46: 00           NOP
+  CE47: 00           NOP
+  CE48: 00           NOP
+  CE49: 00           NOP
+  CE4A: 00           NOP
+  CE4B: 00           NOP
+  CE4C: 00           NOP
+  CE4D: 00           NOP
+  CE4E: 00           NOP
+  CE4F: 00           NOP
+  CE50: 00           NOP
+  CE51: B2 0A        CPL   0x21.2
+  CE53: 8B 02        MOV   0x02,R3
+  CE55: 00           NOP
+  CE56: 05 0A        INC   0x0A
+  CE58: 8B 02        MOV   0x02,R3
+  CE5A: 00           NOP
+  CE5B: 15 16        DEC   0x16
+  CE5D: 05 00        INC   0x00
+  CE5F: 80 1A        SJMP  0xCE7B
+  CE61: 06           INC   @R0
+  CE62: 00           NOP
+  CE63: 20 A1 07     JB    0xA0.1,0xCE6D
+  CE66: 00           NOP
+  CE67: 40 42        JC    0xCEAB
+  CE69: 0F           INC   R7
+  CE6A: 00           NOP
+  CE6B: A9           DB    0xA9
+  CE6C: 07           INC   @R1
+  CE6D: 90 C6 C4     MOV   DPTR,#0xC6C4
+  CE70: E0           MOVX  A,@DPTR
+  CE71: FE           MOV   R6,A
+  CE72: A3           INC   DPTR
+  CE73: E0           MOVX  A,@DPTR
+  CE74: FF           MOV   R7,A
+  CE75: 90 C6 AF     MOV   DPTR,#0xC6AF
+  CE78: E0           MOVX  A,@DPTR
+  CE79: FC           MOV   R4,A
+  CE7A: A3           INC   DPTR
+  CE7B: E0           MOVX  A,@DPTR
+  CE7C: FD           MOV   R5,A
+  CE7D: C3           CLR   CY
+  CE7E: 9F           DB    0x9F
+  CE7F: EC           MOV   A,R4
+  CE80: 9E           DB    0x9E
+  CE81: 50 06        JNC   0xCE89
+  CE83: AE           DB    0xAE
+  CE84: 04           INC   A
+  CE85: AF           DB    0xAF
+  CE86: 05 80        INC   0x80
+  CE88: 00           NOP
+  CE89: AB           DB    0xAB
+  CE8A: 07           INC   @R1
+  CE8B: AA           DB    0xAA
+  CE8C: 06           INC   @R0
+  CE8D: D3           SETB  CY
+  CE8E: EB           MOV   A,R3
+  CE8F: 94 A0        SUBB  A,#0xA0
+  CE91: EA           MOV   A,R2
+  CE92: 94 05        SUBB  A,#0x05
+  CE94: 40 07        JC    0xCE9D
+  CE96: E9           MOV   A,R1
+  CE97: 60 04        JZ    0xCE9D
+  CE99: 7A 05        MOV   R2,#0x05
+  CE9B: 7B A0        MOV   R3,#0xA0
+  CE9D: 90 F8 E6     MOV   DPTR,#0xF8E6
+  CEA0: EB           MOV   A,R3
+  CEA1: F0           MOVX  @DPTR,A
+  CEA2: EA           MOV   A,R2
+  CEA3: F9           MOV   R1,A
+  CEA4: A3           INC   DPTR
+  CEA5: F0           MOVX  @DPTR,A
+  CEA6: D3           SETB  CY
+  CEA7: ED           MOV   A,R5
+  CEA8: 9B           DB    0x9B
+  CEA9: EC           MOV   A,R4
+  CEAA: 9A           DB    0x9A
+  CEAB: 50 08        JNC   0xCEB5
+  CEAD: 90 F8 E1     MOV   DPTR,#0xF8E1
+  CEB0: 74 47        MOV   A,#0x47
+  CEB2: F0           MOVX  @DPTR,A
+  CEB3: 80 1F        SJMP  0xCED4
+  CEB5: EB           MOV   A,R3
+  CEB6: 25 E0        ADD   A,0xE0
+  CEB8: FF           MOV   R7,A
+  CEB9: EA           MOV   A,R2
+  CEBA: 33           RLC   A
+  CEBB: FE           MOV   R6,A
+  CEBC: D3           SETB  CY
+  CEBD: 90 C6 B0     MOV   DPTR,#0xC6B0
+  CEC0: E0           MOVX  A,@DPTR
+  CEC1: 9F           DB    0x9F
+  CEC2: 90 C6 AF     MOV   DPTR,#0xC6AF
+  CEC5: E0           MOVX  A,@DPTR
+  CEC6: 9E           DB    0x9E
+  CEC7: 90 F8 E1     MOV   DPTR,#0xF8E1
+  CECA: 50 05        JNC   0xCED1
+  CECC: 74 4B        MOV   A,#0x4B
+  CECE: F0           MOVX  @DPTR,A
+  CECF: 80 03        SJMP  0xCED4
+  CED1: 74 53        MOV   A,#0x53
+  CED3: F0           MOVX  @DPTR,A
+  CED4: 90 C6 AA     MOV   DPTR,#0xC6AA
+  CED7: E0           MOVX  A,@DPTR
+  CED8: 90 F9 26     MOV   DPTR,#0xF926
+  CEDB: 30 E0 11     JNB   ACC.0,0xCEEF
+  CEDE: 74 0F        MOV   A,#0x0F
+  CEE0: F0           MOVX  @DPTR,A
+  CEE1: 90 F9 29     MOV   DPTR,#0xF929
+  CEE4: 74 1F        MOV   A,#0x1F
+  CEE6: F0           MOVX  @DPTR,A
+  CEE7: 90 F9 36     MOV   DPTR,#0xF936
+  CEEA: 74 0F        MOV   A,#0x0F
+  CEEC: F0           MOVX  @DPTR,A
+  CEED: 80 0F        SJMP  0xCEFE
+  CEEF: 74 05        MOV   A,#0x05
+  CEF1: F0           MOVX  @DPTR,A
+  CEF2: 90 F9 29     MOV   DPTR,#0xF929
+  CEF5: 74 0B        MOV   A,#0x0B
+  CEF7: F0           MOVX  @DPTR,A
+  CEF8: 90 F9 36     MOV   DPTR,#0xF936
+  CEFB: 74 05        MOV   A,#0x05
+  CEFD: F0           MOVX  @DPTR,A
+  CEFE: 90 F9 25     MOV   DPTR,#0xF925
+  CF01: 74 EF        MOV   A,#0xEF
+  CF03: F0           MOVX  @DPTR,A
+  CF04: 90 F9 28     MOV   DPTR,#0xF928
+  CF07: 74 DE        MOV   A,#0xDE
+  CF09: F0           MOVX  @DPTR,A
+  CF0A: 90 F9 35     MOV   DPTR,#0xF935
+  CF0D: 74 EF        MOV   A,#0xEF
+  CF0F: F0           MOVX  @DPTR,A
+  CF10: 90 F9 47     MOV   DPTR,#0xF947
+  CF13: 74 0C        MOV   A,#0x0C
+  CF15: F0           MOVX  @DPTR,A
+  CF16: 90 F9 4A     MOV   DPTR,#0xF94A
+  CF19: 74 12        MOV   A,#0x12
+  CF1B: F0           MOVX  @DPTR,A
+  CF1C: EA           MOV   A,R2
+  CF1D: C3           CLR   CY
+  CF1E: 13           RRC   A
+  CF1F: EB           MOV   A,R3
+  CF20: 13           RRC   A
+  CF21: FD           MOV   R5,A
+  CF22: 90 F9 37     MOV   DPTR,#0xF937
+  CF25: F0           MOVX  @DPTR,A
+  CF26: EA           MOV   A,R2
+  CF27: C3           CLR   CY
+  CF28: 13           RRC   A
+  CF29: FF           MOV   R7,A
+  CF2A: A3           INC   DPTR
+  CF2B: F0           MOVX  @DPTR,A
+  CF2C: A3           INC   DPTR
+  CF2D: ED           MOV   A,R5
+  CF2E: F0           MOVX  @DPTR,A
+  CF2F: A3           INC   DPTR
+  CF30: EF           MOV   A,R7
+  CF31: F0           MOVX  @DPTR,A
+  CF32: 90 FD 40     MOV   DPTR,#0xFD40
+  CF35: EB           MOV   A,R3
+  CF36: F0           MOVX  @DPTR,A
+  CF37: A3           INC   DPTR
+  CF38: E9           MOV   A,R1
+  CF39: F0           MOVX  @DPTR,A
+  CF3A: AF           DB    0xAF
+  CF3B: 03           RR    A
+  CF3C: AE           DB    0xAE
+  CF3D: 02 90 C6     LJMP  0x90C6
+  CF40: C4           SWAP  A
+  CF41: E0           MOVX  A,@DPTR
+  CF42: FC           MOV   R4,A
+  CF43: A3           INC   DPTR
+  CF44: E0           MOVX  A,@DPTR
+  CF45: FD           MOV   R5,A
+  CF46: E4           CLR   A
+  CF47: FB           MOV   R3,A
+  CF48: 12 D2 7D     LCALL 0xD27D
+  CF4B: 90 FD 3B     MOV   DPTR,#0xFD3B
+  CF4E: EF           MOV   A,R7
+  CF4F: F0           MOVX  @DPTR,A
+  CF50: EE           MOV   A,R6
+  CF51: A3           INC   DPTR
+  CF52: F0           MOVX  @DPTR,A
+  CF53: 90 F8 E0     MOV   DPTR,#0xF8E0
+  CF56: 74 01        MOV   A,#0x01
+  CF58: F0           MOVX  @DPTR,A
+  CF59: 90 FD 00     MOV   DPTR,#0xFD00
+  CF5C: F0           MOVX  @DPTR,A
+  CF5D: 22           RET
+  CF5E: E4           CLR   A
+  CF5F: FF           MOV   R7,A
+  CF60: FE           MOV   R6,A
+  CF61: E4           CLR   A
+  CF62: 90 DE 08     MOV   DPTR,#0xDE08
+  CF65: F0           MOVX  @DPTR,A
+  CF66: A3           INC   DPTR
+  CF67: F0           MOVX  @DPTR,A
+  CF68: 90 DE 08     MOV   DPTR,#0xDE08
+  CF6B: E0           MOVX  A,@DPTR
+  CF6C: FC           MOV   R4,A
+  CF6D: A3           INC   DPTR
+  CF6E: E0           MOVX  A,@DPTR
+  CF6F: FD           MOV   R5,A
+  CF70: C3           CLR   CY
+  CF71: 94 19        SUBB  A,#0x19
+  CF73: EC           MOV   A,R4
+  CF74: 64 80        XRL   A,#0x80
+  CF76: 94 80        SUBB  A,#0x80
+  CF78: 50 46        JNC   0xCFC0
+  CF7A: 74 52        MOV   A,#0x52
+  CF7C: 2D           ADD   A,R5
+  CF7D: F5 82        MOV   0x82,A
+  CF7F: 74 CE        MOV   A,#0xCE
+  CF81: 3C           ADDC  A,R4
+  CF82: F5 83        MOV   0x83,A
+  CF84: E4           CLR   A
+  CF85: 93           MOVC  A,@A+DPTR
+  CF86: FD           MOV   R5,A
+  CF87: 90 DE 08     MOV   DPTR,#0xDE08
+  CF8A: E0           MOVX  A,@DPTR
+  CF8B: FA           MOV   R2,A
+  CF8C: A3           INC   DPTR
+  CF8D: E0           MOVX  A,@DPTR
+  CF8E: FB           MOV   R3,A
+  CF8F: 8F 82        MOV   0x82,R7
+  CF91: 8E 83        MOV   0x83,R6
+  CF93: 74 2E        MOV   A,#0x2E
+  CF95: 12 D2 12     LCALL 0xD212
+  CF98: E5 82        MOV   A,0x82
+  CF9A: 2B           ADD   A,R3
+  CF9B: F5 82        MOV   0x82,A
+  CF9D: E5 83        MOV   A,0x83
+  CF9F: 3A           ADDC  A,R2
+  CFA0: F5 83        MOV   0x83,A
+  CFA2: E5 82        MOV   A,0x82
+  CFA4: 24 BF        ADD   A,#0xBF
+  CFA6: F5 82        MOV   0x82,A
+  CFA8: E5 83        MOV   A,0x83
+  CFAA: 34 C0        ADDC  A,#0xC0
+  CFAC: F5 83        MOV   0x83,A
+  CFAE: ED           MOV   A,R5
+  CFAF: F0           MOVX  @DPTR,A
+  CFB0: 90 DE 09     MOV   DPTR,#0xDE09
+  CFB3: E0           MOVX  A,@DPTR
+  CFB4: 04           INC   A
+  CFB5: F0           MOVX  @DPTR,A
+  CFB6: 70 B0        JNZ   0xCF68
+  CFB8: 90 DE 08     MOV   DPTR,#0xDE08
+  CFBB: E0           MOVX  A,@DPTR
+  CFBC: 04           INC   A
+  CFBD: F0           MOVX  @DPTR,A
+  CFBE: 80 A8        SJMP  0xCF68
+  CFC0: 0F           INC   R7
+  CFC1: BF 00 01     CJNE  R7,#0x00,0xCFC5
+  CFC4: 0E           INC   R6
+  CFC5: EF           MOV   A,R7
+  CFC6: 64 05        XRL   A,#0x05
+  CFC8: 4E           ORL   A,R6
+  CFC9: 70 96        JNZ   0xCF61
+  CFCB: 7E 00        MOV   R6,#0x00
+  CFCD: 7F 05        MOV   R7,#0x05
+  CFCF: E4           CLR   A
+  CFD0: 90 DE 08     MOV   DPTR,#0xDE08
+  CFD3: F0           MOVX  @DPTR,A
+  CFD4: A3           INC   DPTR
+  CFD5: F0           MOVX  @DPTR,A
+  CFD6: 90 DE 08     MOV   DPTR,#0xDE08
+  CFD9: E0           MOVX  A,@DPTR
+  CFDA: FC           MOV   R4,A
+  CFDB: A3           INC   DPTR
+  CFDC: E0           MOVX  A,@DPTR
+  CFDD: FD           MOV   R5,A
+  CFDE: C3           CLR   CY
+  CFDF: 94 04        SUBB  A,#0x04
+  CFE1: EC           MOV   A,R4
+  CFE2: 64 80        XRL   A,#0x80
+  CFE4: 94 80        SUBB  A,#0x80
+  CFE6: 50 46        JNC   0xD02E
+  CFE8: 74 52        MOV   A,#0x52
+  CFEA: 2D           ADD   A,R5
+  CFEB: F5 82        MOV   0x82,A
+  CFED: 74 CE        MOV   A,#0xCE
+  CFEF: 3C           ADDC  A,R4
+  CFF0: F5 83        MOV   0x83,A
+  CFF2: E4           CLR   A
+  CFF3: 93           MOVC  A,@A+DPTR
+  CFF4: FD           MOV   R5,A
+  CFF5: 90 DE 08     MOV   DPTR,#0xDE08
+  CFF8: E0           MOVX  A,@DPTR
+  CFF9: FA           MOV   R2,A
+  CFFA: A3           INC   DPTR
+  CFFB: E0           MOVX  A,@DPTR
+  CFFC: FB           MOV   R3,A
+  CFFD: 8F 82        MOV   0x82,R7
+  CFFF: 8E 83        MOV   0x83,R6
+  D001: 74 2E        MOV   A,#0x2E
+  D003: 12 D2 12     LCALL 0xD212
+  D006: E5 82        MOV   A,0x82
+  D008: 2B           ADD   A,R3
+  D009: F5 82        MOV   0x82,A
+  D00B: E5 83        MOV   A,0x83
+  D00D: 3A           ADDC  A,R2
+  D00E: F5 83        MOV   0x83,A
+  D010: E5 82        MOV   A,0x82
+  D012: 24 BF        ADD   A,#0xBF
+  D014: F5 82        MOV   0x82,A
+  D016: E5 83        MOV   A,0x83
+  D018: 34 C0        ADDC  A,#0xC0
+  D01A: F5 83        MOV   0x83,A
+  D01C: ED           MOV   A,R5
+  D01D: F0           MOVX  @DPTR,A
+  D01E: 90 DE 09     MOV   DPTR,#0xDE09
+  D021: E0           MOVX  A,@DPTR
+  D022: 04           INC   A
+  D023: F0           MOVX  @DPTR,A
+  D024: 70 B0        JNZ   0xCFD6
+  D026: 90 DE 08     MOV   DPTR,#0xDE08
+  D029: E0           MOVX  A,@DPTR
+  D02A: 04           INC   A
+  D02B: F0           MOVX  @DPTR,A
+  D02C: 80 A8        SJMP  0xCFD6
+  D02E: 0F           INC   R7
+  D02F: BF 00 01     CJNE  R7,#0x00,0xD033
+  D032: 0E           INC   R6
+  D033: EF           MOV   A,R7
+  D034: 64 0B        XRL   A,#0x0B
+  D036: 4E           ORL   A,R6
+  D037: 70 96        JNZ   0xCFCF
+  D039: 22           RET
+  D03A: EF           MOV   A,R7
+  D03B: 12 D2 23     LCALL 0xD223
+  D03E: D0 5D        POP   0x5D
+  D040: 00           NOP
+  D041: D0 83        POP   0x83
+  D043: 01 D0        AJMP  0xD0D0
+  D045: AE           DB    0xAE
+  D046: 02 D0 E1     LJMP  0xD0E1
+  D049: 0A           INC   R2
+  D04A: D0 92        POP   0x92
+  D04C: 0B           INC   R3
+  D04D: D0 CE        POP   0xCE
+  D04F: 0C           INC   R4
+  D050: D0 DE        POP   0xDE
+  D052: 0E           INC   R6
+  D053: D0 E8        POP   0xE8
+  D055: 0F           INC   R7
+  D056: D0 FB        POP   0xFB
+  D058: 14           DEC   A
+  D059: 00           NOP
+  D05A: 00           NOP
+  D05B: D1 03        ACALL 0xD603
+  D05D: 90 C7 81     MOV   DPTR,#0xC781
+  D060: 74 04        MOV   A,#0x04
+  D062: F0           MOVX  @DPTR,A
+  D063: 90 C7 83     MOV   DPTR,#0xC783
+  D066: 74 20        MOV   A,#0x20
+  D068: F0           MOVX  @DPTR,A
+  D069: 90 C7 82     MOV   DPTR,#0xC782
+  D06C: 74 1C        MOV   A,#0x1C
+  D06E: F0           MOVX  @DPTR,A
+  D06F: E4           CLR   A
+  D070: 90 DE 0C     MOV   DPTR,#0xDE0C
+  D073: F0           MOVX  @DPTR,A
+  D074: 90 F8 0B     MOV   DPTR,#0xF80B
+  D077: 74 C1        MOV   A,#0xC1
+  D079: F0           MOVX  @DPTR,A
+  D07A: 90 F8 14     MOV   DPTR,#0xF814
+  D07D: 74 23        MOV   A,#0x23
+  D07F: F0           MOVX  @DPTR,A
+  D080: C2 0C        CLR   0x21.4
+  D082: 22           RET
+  D083: 90 FE 20     MOV   DPTR,#0xFE20
+  D086: 74 2A        MOV   A,#0x2A
+  D088: F0           MOVX  @DPTR,A
+  D089: 12 D2 92     LCALL 0xD292
+  D08C: 90 C6 97     MOV   DPTR,#0xC697
+  D08F: 74 02        MOV   A,#0x02
+  D091: F0           MOVX  @DPTR,A
+  D092: 90 F9 2C     MOV   DPTR,#0xF92C
+  D095: 74 20        MOV   A,#0x20
+  D097: F0           MOVX  @DPTR,A
+  D098: 90 E3 3C     MOV   DPTR,#0xE33C
+  D09B: 74 F5        MOV   A,#0xF5
+  D09D: F0           MOVX  @DPTR,A
+  D09E: A3           INC   DPTR
+  D09F: 74 0F        MOV   A,#0x0F
+  D0A1: F0           MOVX  @DPTR,A
+  D0A2: A3           INC   DPTR
+  D0A3: E4           CLR   A
+  D0A4: F0           MOVX  @DPTR,A
+  D0A5: A3           INC   DPTR
+  D0A6: F0           MOVX  @DPTR,A
+  D0A7: 90 FE BA     MOV   DPTR,#0xFEBA
+  D0AA: 74 08        MOV   A,#0x08
+  D0AC: F0           MOVX  @DPTR,A
+  D0AD: 22           RET
+  D0AE: 12 D2 49     LCALL 0xD249
+  D0B1: 90 EF E0     MOV   DPTR,#0xEFE0
+  D0B4: E0           MOVX  A,@DPTR
+  D0B5: 30 E6 4B     JNB   ACC.6,0xD103
+  D0B8: 90 EF E8     MOV   DPTR,#0xEFE8
+  D0BB: 74 40        MOV   A,#0x40
+  D0BD: F0           MOVX  @DPTR,A
+  D0BE: A3           INC   DPTR
+  D0BF: E4           CLR   A
+  D0C0: F0           MOVX  @DPTR,A
+  D0C1: A3           INC   DPTR
+  D0C2: F0           MOVX  @DPTR,A
+  D0C3: A3           INC   DPTR
+  D0C4: F0           MOVX  @DPTR,A
+  D0C5: 90 C7 76     MOV   DPTR,#0xC776
+  D0C8: F0           MOVX  @DPTR,A
+  D0C9: A3           INC   DPTR
+  D0CA: 74 C8        MOV   A,#0xC8
+  D0CC: F0           MOVX  @DPTR,A
+  D0CD: 22           RET
+  D0CE: 30 00 03     JNB   0x20.0,0xD0D4
+  D0D1: 12 D1 B6     LCALL 0xD1B6
+  D0D4: 90 F9 AF     MOV   DPTR,#0xF9AF
+  D0D7: 74 22        MOV   A,#0x22
+  D0D9: F0           MOVX  @DPTR,A
+  D0DA: 74 02        MOV   A,#0x02
+  D0DC: F0           MOVX  @DPTR,A
+  D0DD: 22           RET
+  D0DE: 02 D2 92     LJMP  0xD292
+  D0E1: 90 F9 AF     MOV   DPTR,#0xF9AF
+  D0E4: 74 22        MOV   A,#0x22
+  D0E6: F0           MOVX  @DPTR,A
+  D0E7: 22           RET
+  D0E8: E4           CLR   A
+  D0E9: 90 C5 4F     MOV   DPTR,#0xC54F
+  D0EC: F0           MOVX  @DPTR,A
+  D0ED: 90 EF D0     MOV   DPTR,#0xEFD0
+  D0F0: F0           MOVX  @DPTR,A
+  D0F1: A3           INC   DPTR
+  D0F2: 74 30        MOV   A,#0x30
+  D0F4: F0           MOVX  @DPTR,A
+  D0F5: A3           INC   DPTR
+  D0F6: E4           CLR   A
+  D0F7: F0           MOVX  @DPTR,A
+  D0F8: A3           INC   DPTR
+  D0F9: F0           MOVX  @DPTR,A
+  D0FA: 22           RET
+  D0FB: 12 D1 B6     LCALL 0xD1B6
+  D0FE: 7F FF        MOV   R7,#0xFF
+  D100: 12 D2 AC     LCALL 0xD2AC
+  D103: 22           RET
+  D104: EF           MOV   A,R7
+  D105: 24 F4        ADD   A,#0xF4
+  D107: 60 10        JZ    0xD119
+  D109: 24 04        ADD   A,#0x04
+  D10B: 60 03        JZ    0xD110
+  D10D: 02 D1 B5     LJMP  0xD1B5
+  D110: 7B FF        MOV   R3,#0xFF
+  D112: 7A CD        MOV   R2,#0xCD
+  D114: 79 52        MOV   R1,#0x52
+  D116: 02 CC 10     LJMP  0xCC10
+  D119: E5 37        MOV   A,0x37
+  D11B: 64 3C        XRL   A,#0x3C
+  D11D: 60 03        JZ    0xD122
+  D11F: 02 D1 B5     LJMP  0xD1B5
+  D122: E5 36        MOV   A,0x36
+  D124: C3           CLR   CY
+  D125: 94 06        SUBB  A,#0x06
+  D127: 40 03        JC    0xD12C
+  D129: 02 D1 B5     LJMP  0xD1B5
+  D12C: E5 36        MOV   A,0x36
+  D12E: B4 01 0C     CJNE  A,#0x01,0xD13D
+  D131: 90 FD 03     MOV   DPTR,#0xFD03
+  D134: 74 09        MOV   A,#0x09
+  D136: F0           MOVX  @DPTR,A
+  D137: 90 FD 02     MOV   DPTR,#0xFD02
+  D13A: 74 42        MOV   A,#0x42
+  D13C: F0           MOVX  @DPTR,A
+  D13D: E5 36        MOV   A,0x36
+  D13F: B4 02 0C     CJNE  A,#0x02,0xD14E
+  D142: 90 FD 03     MOV   DPTR,#0xFD03
+  D145: 74 08        MOV   A,#0x08
+  D147: F0           MOVX  @DPTR,A
+  D148: 90 FD 02     MOV   DPTR,#0xFD02
+  D14B: 74 55        MOV   A,#0x55
+  D14D: F0           MOVX  @DPTR,A
+  D14E: E5 36        MOV   A,0x36
+  D150: B4 03 12     CJNE  A,#0x03,0xD165
+  D153: 90 FD 03     MOV   DPTR,#0xFD03
+  D156: 74 07        MOV   A,#0x07
+  D158: F0           MOVX  @DPTR,A
+  D159: 90 FD 02     MOV   DPTR,#0xFD02
+  D15C: 74 25        MOV   A,#0x25
+  D15E: F0           MOVX  @DPTR,A
+  D15F: 90 F8 07     MOV   DPTR,#0xF807
+  D162: 74 0A        MOV   A,#0x0A
+  D164: F0           MOVX  @DPTR,A
+  D165: E5 36        MOV   A,0x36
+  D167: B4 04 12     CJNE  A,#0x04,0xD17C
+  D16A: 90 FD 03     MOV   DPTR,#0xFD03
+  D16D: 74 06        MOV   A,#0x06
+  D16F: F0           MOVX  @DPTR,A
+  D170: 90 FD 02     MOV   DPTR,#0xFD02
+  D173: 74 83        MOV   A,#0x83
+  D175: F0           MOVX  @DPTR,A
+  D176: 90 F8 07     MOV   DPTR,#0xF807
+  D179: 74 08        MOV   A,#0x08
+  D17B: F0           MOVX  @DPTR,A
+  D17C: E5 36        MOV   A,0x36
+  D17E: B4 05 12     CJNE  A,#0x05,0xD193
+  D181: 90 FD 03     MOV   DPTR,#0xFD03
+  D184: 74 06        MOV   A,#0x06
+  D186: F0           MOVX  @DPTR,A
+  D187: 90 FD 02     MOV   DPTR,#0xFD02
+  D18A: 74 49        MOV   A,#0x49
+  D18C: F0           MOVX  @DPTR,A
+  D18D: 90 F8 07     MOV   DPTR,#0xF807
+  D190: 74 09        MOV   A,#0x09
+  D192: F0           MOVX  @DPTR,A
+  D193: D3           SETB  CY
+  D194: 90 C6 B6     MOV   DPTR,#0xC6B6
+  D197: E0           MOVX  A,@DPTR
+  D198: 94 B8        SUBB  A,#0xB8
+  D19A: 90 C6 B5     MOV   DPTR,#0xC6B5
+  D19D: E0           MOVX  A,@DPTR
+  D19E: 94 0B        SUBB  A,#0x0B
+  D1A0: 40 13        JC    0xD1B5
+  D1A2: 90 C6 AA     MOV   DPTR,#0xC6AA
+  D1A5: E0           MOVX  A,@DPTR
+  D1A6: 30 E0 0C     JNB   ACC.0,0xD1B5
+  D1A9: 90 F9 2E     MOV   DPTR,#0xF92E
+  D1AC: 74 22        MOV   A,#0x22
+  D1AE: F0           MOVX  @DPTR,A
+  D1AF: 90 F9 22     MOV   DPTR,#0xF922
+  D1B2: 74 82        MOV   A,#0x82
+  D1B4: F0           MOVX  @DPTR,A
+  D1B5: 22           RET
+  D1B6: 90 F8 06     MOV   DPTR,#0xF806
+  D1B9: 74 30        MOV   A,#0x30
+  D1BB: F0           MOVX  @DPTR,A
+  D1BC: 90 C6 C6     MOV   DPTR,#0xC6C6
+  D1BF: E0           MOVX  A,@DPTR
+  D1C0: FE           MOV   R6,A
+  D1C1: A3           INC   DPTR
+  D1C2: E0           MOVX  A,@DPTR
+  D1C3: FF           MOV   R7,A
+  D1C4: C3           CLR   CY
+  D1C5: 90 C6 B2     MOV   DPTR,#0xC6B2
+  D1C8: E0           MOVX  A,@DPTR
+  D1C9: 9F           DB    0x9F
+  D1CA: 90 C6 B1     MOV   DPTR,#0xC6B1
+  D1CD: E0           MOVX  A,@DPTR
+  D1CE: 9E           DB    0x9E
+  D1CF: 40 3B        JC    0xD20C
+  D1D1: 90 C6 AA     MOV   DPTR,#0xC6AA
+  D1D4: E0           MOVX  A,@DPTR
+  D1D5: 30 E0 34     JNB   ACC.0,0xD20C
+  D1D8: E5 36        MOV   A,0x36
+  D1DA: B4 01 10     CJNE  A,#0x01,0xD1ED
+  D1DD: E5 37        MOV   A,0x37
+  D1DF: D3           SETB  CY
+  D1E0: 94 14        SUBB  A,#0x14
+  D1E2: 40 09        JC    0xD1ED
+  D1E4: 90 C6 B5     MOV   DPTR,#0xC6B5
+  D1E7: E0           MOVX  A,@DPTR
+  D1E8: D3           SETB  CY
+  D1E9: 94 0B        SUBB  A,#0x0B
+  D1EB: 50 15        JNC   0xD202
+  D1ED: E5 36        MOV   A,0x36
+  D1EF: B4 02 16     CJNE  A,#0x02,0xD208
+  D1F2: E5 37        MOV   A,0x37
+  D1F4: D3           SETB  CY
+  D1F5: 94 0A        SUBB  A,#0x0A
+  D1F7: 40 0F        JC    0xD208
+  D1F9: 90 C6 B5     MOV   DPTR,#0xC6B5
+  D1FC: E0           MOVX  A,@DPTR
+  D1FD: D3           SETB  CY
+  D1FE: 94 0B        SUBB  A,#0x0B
+  D200: 40 06        JC    0xD208
+  D202: 90 F8 06     MOV   DPTR,#0xF806
+  D205: 74 20        MOV   A,#0x20
+  D207: F0           MOVX  @DPTR,A
+  D208: E4           CLR   A
+  D209: FF           MOV   R7,A
+  D20A: 80 02        SJMP  0xD20E
+  D20C: 7F 01        MOV   R7,#0x01
+  D20E: 12 CE 6B     LCALL 0xCE6B
+  D211: 22           RET
+  D212: F5 F0        MOV   0xF0,A
+  D214: C5 82        XCH   A,0x82
+  D216: A4           MUL   AB
+  D217: C5 82        XCH   A,0x82
+  D219: C5 F0        XCH   A,0xF0
+  D21B: C5 83        XCH   A,0x83
+  D21D: A4           MUL   AB
+  D21E: 25 83        ADD   A,0x83
+  D220: F5 83        MOV   0x83,A
+  D222: 22           RET
+  D223: D0 83        POP   0x83
+  D225: D0 82        POP   0x82
+  D227: F8           MOV   R0,A
+  D228: E4           CLR   A
+  D229: 93           MOVC  A,@A+DPTR
+  D22A: 70 12        JNZ   0xD23E
+  D22C: 74 01        MOV   A,#0x01
+  D22E: 93           MOVC  A,@A+DPTR
+  D22F: 70 0D        JNZ   0xD23E
+  D231: A3           INC   DPTR
+  D232: A3           INC   DPTR
+  D233: 93           MOVC  A,@A+DPTR
+  D234: F8           MOV   R0,A
+  D235: 74 01        MOV   A,#0x01
+  D237: 93           MOVC  A,@A+DPTR
+  D238: F5 82        MOV   0x82,A
+  D23A: 88 83        MOV   0x83,R0
+  D23C: E4           CLR   A
+  D23D: 73           DB    0x73
+  D23E: 74 02        MOV   A,#0x02
+  D240: 93           MOVC  A,@A+DPTR
+  D241: 68           XRL   A,R0
+  D242: 60 EF        JZ    0xD233
+  D244: A3           INC   DPTR
+  D245: A3           INC   DPTR
+  D246: A3           INC   DPTR
+  D247: 80 DF        SJMP  0xD228
+  D249: 90 F1 F0     MOV   DPTR,#0xF1F0
+  D24C: E0           MOVX  A,@DPTR
+  D24D: 70 2D        JNZ   0xD27C
+  D24F: C2 AF        CLR   EA
+  D251: E5 3B        MOV   A,0x3B
+  D253: 54 0F        ANL   A,#0x0F
+  D255: 60 23        JZ    0xD27A
+  D257: 90 C6 A0     MOV   DPTR,#0xC6A0
+  D25A: E0           MOVX  A,@DPTR
+  D25B: 90 FE 90     MOV   DPTR,#0xFE90
+  D25E: F0           MOVX  @DPTR,A
+  D25F: 90 C6 A2     MOV   DPTR,#0xC6A2
+  D262: E0           MOVX  A,@DPTR
+  D263: 90 FE 91     MOV   DPTR,#0xFE91
+  D266: F0           MOVX  @DPTR,A
+  D267: 90 C6 A4     MOV   DPTR,#0xC6A4
+  D26A: E0           MOVX  A,@DPTR
+  D26B: 90 FE 93     MOV   DPTR,#0xFE93
+  D26E: F0           MOVX  @DPTR,A
+  D26F: 90 C6 A6     MOV   DPTR,#0xC6A6
+  D272: E0           MOVX  A,@DPTR
+  D273: 90 FE 92     MOV   DPTR,#0xFE92
+  D276: F0           MOVX  @DPTR,A
+  D277: E4           CLR   A
+  D278: F5 3B        MOV   0x3B,A
+  D27A: D2 AF        SETB  EA
+  D27C: 22           RET
+  D27D: 90 DE 00     MOV   DPTR,#0xDE00
+  D280: EE           MOV   A,R6
+  D281: F0           MOVX  @DPTR,A
+  D282: A3           INC   DPTR
+  D283: EF           MOV   A,R7
+  D284: F0           MOVX  @DPTR,A
+  D285: A3           INC   DPTR
+  D286: EC           MOV   A,R4
+  D287: F0           MOVX  @DPTR,A
+  D288: A3           INC   DPTR
+  D289: ED           MOV   A,R5
+  D28A: F0           MOVX  @DPTR,A
+  D28B: A3           INC   DPTR
+  D28C: EB           MOV   A,R3
+  D28D: F0           MOVX  @DPTR,A
+  D28E: 12 52 DD     LCALL 0x52DD
+  D291: 22           RET
+  D292: 12 D2 B5     LCALL 0xD2B5
+  D295: 90 F8 14     MOV   DPTR,#0xF814
+  D298: 74 33        MOV   A,#0x33
+  D29A: F0           MOVX  @DPTR,A
+  D29B: 14           DEC   A
+  D29C: F0           MOVX  @DPTR,A
+  D29D: 02 D2 B9     LJMP  0xD2B9
+  D2A0: 78 FF        MOV   R0,#0xFF
+  D2A2: E4           CLR   A
+  D2A3: F6           MOV   @R0,A
+  D2A4: D8 FD        DJNZ  R0,0xD2A3
+  D2A6: 75 81 3C     MOV   0x81,#0x3C
+  D2A9: 02 D2 C5     LJMP  0xD2C5
+  D2AC: 90 DE 0A     MOV   DPTR,#0xDE0A
+  D2AF: EF           MOV   A,R7
+  D2B0: F0           MOVX  @DPTR,A
+  D2B1: 12 69 FB     LCALL 0x69FB
+  D2B4: 22           RET
+  D2B5: 12 60 3C     LCALL 0x603C
+  D2B8: 22           RET
+  D2B9: 12 58 84     LCALL 0x5884
+  D2BC: 22           RET
+  D2BD: 12 48 E6     LCALL 0x48E6
+  D2C0: 22           RET
+  D2C1: 12 60 69     LCALL 0x6069
+  D2C4: 22           RET
+  D2C5: 80 FE        SJMP  0xD2C5

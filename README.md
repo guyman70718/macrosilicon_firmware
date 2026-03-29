@@ -9,7 +9,7 @@ mask ROM disassembly and rebuilt in C with SDCC.
 |------|----------|--------|----------|
 | **MS2107** | CVBS/S-Video to USB capture | Working | Signal status, image adjust, input select, GPIO, I2C master |
 | **MS9123** | USB to CVBS/S-Video display | Working | Display status, PAL/NTSC mode, DAC control, GPIO |
-| **MS2109** | HDMI to USB capture | Dumped | Analysis in progress |
+| **MS2109** | HDMI to USB capture | In progress | Boot sequence RE'd, firmware builds, bisecting boot failure |
 
 ## What This Does
 
@@ -148,14 +148,29 @@ macrosilicon/
     boot_annotated.md      Annotated boot sequence
     i2c_analysis.md        I2C bus analysis (two buses, pin mapping)
 
-  ms2109/rom/              MS2109 analysis (in progress)
+  ms2109/eeprom/          MS2109 firmware source + build
+    eeprom_fw.c            Main firmware (C, compiled with SDCC)
+    crt0_ms2109.asm        Custom startup: hook entries, IRQ handler (assembly),
+                           register programming, ROM function wrappers
+    hw_defs.h              Hardware register definitions (w/ datasheet pin map)
+    rom_stubs.h            ROM function declarations
+    build_eeprom.py        EEPROM image builder (no-skip checksum, same as MS9123)
+    build_minimal_test.py  Build known-good 33-byte baseline EEPROM
+    Makefile               Build: crt0 + C -> ihx -> bin -> EEPROM image
+  ms2109/rom/
+    boot_annotated.md      Full hook architecture, CODE/XDATA overlay, recovery notes
+    eeprom_disasm.txt      Stock EEPROM code disassembly (our disasm8051.py)
+    eeprom_disasm_r2.txt   Stock EEPROM code disassembly (radare2)
+    rom_key_functions.txt  Key ROM function disassembly (radare2)
 
   tools/                   Reusable analysis tools
     diff8051.py            8051 binary semantic diff (raw/fuzzy/semantic)
+    disasm8051.py          Simple 8051 disassembler for firmware code blocks
     ms_hid.py              HID communication library for Macrosilicon devices
     ms_movc_dump.py        CODE space dump via RAM-patched MOVC handler
     ms_xdata_dump.py       XDATA dump (single-byte reads)
     ms_eeprom_checksum.py  EEPROM checksum calculator (MS2107 + MS9123 variants)
+    bp5_eeprom.py          Bus Pirate 5 EEPROM recovery tool (2.5V, I2C, 24C16)
     GhidraSetup.java       Ghidra headless: seed entry points for MS2107
     GhidraSetup2109.java   Ghidra headless: seed entry points for MS2109
     GhidraRename.java      Ghidra headless: rename 69 MS2107 ROM functions
@@ -165,6 +180,7 @@ macrosilicon/
     macrosilicon-notes.md  Main research notes (chip family, EEPROM format, etc.)
     feature-ideas.md       Feature ideas for both chips
     ms2107-rom-init-sequence.md  Detailed ROM init sequence analysis
+    ms2109-datasheet.pdf   MS2109 datasheet (HJ-BMJL-PD-002, rev B/0)
 ```
 
 ## Architecture Notes

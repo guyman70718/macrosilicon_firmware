@@ -45,12 +45,54 @@
 - [x] CODE space dumped (64KB via MOVC)
 - [x] XDATA dumped (64KB)
 - [x] Initial Ghidra analysis (82 functions)
-- [ ] ROM is completely different from MS2107/MS9123 (near-zero code match)
-- [ ] Reverse-engineer init sequence (reset vector at 0x4149)
-- [ ] Map EEPROM header fields (hook config at [4], no-skip checksum)
-- [ ] Reconstruct EEPROM firmware in C
-- [ ] Build and test custom firmware
-- [ ] Add mailbox features (same protocol as MS2107/MS9123)
+- [x] Boot sequence and hook architecture fully documented
+  - Hook config: EEPROM[4] bit 0 = normal (+0x00), bit 2 = IRQ (+0x20)
+  - Callback at +0x10 called from ROM via cmd 0x08 with data table address
+  - CODE/XDATA overlay at 0xC000-0xDFFF (ROM read-through for unwritten areas)
+  - Checksum: no-skip formula (same as MS9123, verified)
+  - See ms2109/rom/boot_annotated.md
+- [x] EEPROM header fields mapped
+- [x] ROM function map (I2C, video processing, mul16, jump table engine)
+- [x] Stock IRQ handler reverse-engineered (signal detection state machine)
+- [x] Stock register programming function reverse-engineered
+  - 25-byte config table, 149 XDATA writes via mul16 address computation
+- [x] EEPROM firmware reconstructed in pure assembly
+  - crt0_ms2109.asm: all hooks, IRQ handler, register programming,
+    EDID, reg_table, video_config, mul16, jump_table_engine, math_func,
+    mailbox dispatch — no C code, no stock dump dependency at build time
+  - Trampolines at fixed CODE addresses for ROM callbacks
+  - 1664 bytes (332 bytes free)
+- [x] Minimal test firmware boots and enumerates (eeprom_minimal_test.bin)
+- [x] Custom firmware boots, enumerates, mailbox works (signal status, GPIO)
+- [ ] Video capture not working — normal hook needs passthrough to ROM dispatch
+
+### Video passthrough (next step)
+
+The normal hook must call ROM dispatch at 0xD03A and cmd_handler at 0xD104
+for video pipeline setup. These are overlay addresses currently occupied by
+our code. Options:
+- [ ] Reimplement dispatch (0xD03A) — Keil jump table using our jump_table_engine
+- [ ] Reimplement cmd_handler (0xD104) — dispatches cmd 0x08/0x0C
+- [ ] Add trampolines at +0x43A and +0x504, rearrange code to keep those offsets clear
+
+The dispatch uses our jump_table_engine (0xD223, already implemented) with
+inline case table data. cmd_handler dispatches two commands: 0x08 (calls
+callback at 0xCC10 with R3:R2:R1) and 0x0C (programs FD02/FD03 timing regs).
+Both are finite and documented in boot_annotated.md.
+
+### Future features
+
+- [ ] I2C master (ROM wrappers ready: start/stop/write/read)
+- [ ] Host-side Python tool for mailbox protocol
+
+### Recovery notes
+
+- Bus Pirate 5 on COM7, clip attached to EEPROM
+- **Must use 2.5V** — at 3.3V the MS2109 back-powers and interferes with I2C writes
+- **Must unplug USB** before BP5 write
+- WP pin grounded via BP5 IO4
+- Stock firmware on BP5 storage as `ms2109.bin`
+- `eeprom_minimal_test.bin` is a known-good 33-byte baseline
 
 ## General
 
