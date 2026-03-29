@@ -343,6 +343,14 @@ cmd_not_00:
 
 	; cmd 0x01: init video mode
 	cjne	a, #0x01, cmd_not_01
+	; Color bar enable (from cmd 0x0B)
+	mov	dptr, #0xF92C
+	mov	a, #0x20
+	movx	@dptr, a
+	mov	dptr, #0xFEBA
+	mov	a, #0x08
+	movx	@dptr, a
+	; Original cmd 1 logic
 	mov	dptr, #0xFE20
 	mov	a, #0x2A
 	movx	@dptr, a
@@ -860,8 +868,8 @@ regprog_check2:
 	; Trampolines at fixed CODE addresses
 	; Padding fills from code end to each trampoline offset.
 	; ================================================================
-	; Pad from code end (+0x5FD) to first trampoline (+0x612)
-	.ds	(0x612 - 0x5FD)
+	; Pad from code end (+0x609) to first trampoline (+0x612)
+	.ds	(0x612 - 0x609)		; recalculated
 
 	; +0x612: mul16 trampoline (ROM calls LCALL 0xD212)
 	ljmp	_mul16
