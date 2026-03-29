@@ -1,7 +1,8 @@
 # Macrosilicon Custom Firmware
 
 Custom EEPROM firmware for Macrosilicon USB video chips, reverse-engineered from
-mask ROM disassembly and rebuilt in C with SDCC.
+mask ROM disassembly. MS2107 and MS9123 are rebuilt in C with SDCC; MS2109 is
+pure 8051 assembly.
 
 ## Supported Chips
 
@@ -9,7 +10,7 @@ mask ROM disassembly and rebuilt in C with SDCC.
 |------|----------|--------|----------|
 | **MS2107** | CVBS/S-Video to USB capture | Working | Signal status, image adjust, input select, GPIO, I2C master |
 | **MS9123** | USB to CVBS/S-Video display | Working | Display status, PAL/NTSC mode, DAC control, GPIO |
-| **MS2109** | HDMI to USB capture | In progress | Boot sequence RE'd, firmware builds, bisecting boot failure |
+| **MS2109** | HDMI to USB capture | Working | HDMI capture, signal detection, I2C master, GPIO, PID override |
 
 ## What This Does
 
@@ -55,15 +56,30 @@ Mailbox at `0xDDF0-0xDDF9`, same HID protocol:
 | 0x05 | GPIO read | P0, P2, P3, P3ALT, DAC readback |
 | 0x06 | GPIO write | Set P0, P2, or P3 port values |
 
+### MS2109 Features (HDMI Capture)
+
+Mailbox at `0xDE00-0xDE07`, same HID protocol. Pure 8051 assembly firmware
+(1983 bytes) with all command handlers reimplemented from ROM disassembly.
+Trampolines at fixed CODE addresses for ROM callbacks. No stock dump
+dependency at build time.
+
+| Command | Feature | Description |
+|---------|---------|-------------|
+| 0x01 | Signal status | HDMI signal state, chip ID |
+| 0x05 | GPIO read | P0, P2, P3 port states |
+| 0x11 | I2C read | Read byte from I2C device register |
+| 0x12 | I2C scan | Scan 0x50-0x57, return bitmap |
+| 0xFE | Identify | Returns "@kraln" |
+
+USB PID is configurable at build time (edit `_set_usb_pid` in crt0).
+EDID, video timing table, and register configuration are editable in
+the assembly source.
+
 ## Building
 
-Requirements: [SDCC](https://sdcc.sourceforge.net/) (8051 C compiler),
-[as31](https://github.com/pjkundert/as31) (8051 assembler).
+Requirements: [SDCC](https://sdcc.sourceforge.net/) (8051 C compiler/assembler).
 
 ```bash
-# Install on Ubuntu/Debian
-sudo apt install sdcc as31
-
 # Build MS2107 firmware
 cd ms2107/eeprom
 make
@@ -72,10 +88,14 @@ make
 cd ms9123/eeprom
 make
 
+# Build MS2109 firmware (pure assembly, uses sdas8051 + sdld)
+cd ms2109/eeprom
+make
+
 # Build with custom USB strings (MS2107 only)
 cd ms2107/eeprom
 make CUSTOM_STRINGS='-DCUSTOM_USB_SERIAL="\"MySerial\""'
-```
+
 
 Output: `eeprom_image.bin` — a complete 2048-byte EEPROM image with header,
 checksums, and firmware code. Flash to the device's I2C EEPROM using
