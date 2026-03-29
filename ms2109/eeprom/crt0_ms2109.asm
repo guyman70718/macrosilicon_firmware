@@ -416,12 +416,23 @@ cmd_not_0A:
 	ljmp	cmd_done
 cmd_not_0B:
 
-	; cmd 0x0C: timing register programming based on IRAM[0x36]
+	; cmd 0x0C: dispatch handler (F9AF, video_adjust) + cmd_handler (FD02/FD03)
 	cjne	a, #0x0C, cmd_not_0C_bounce
 	sjmp	cmd_is_0C
 cmd_not_0C_bounce:
 	ljmp	cmd_not_0C
 cmd_is_0C:
+	; --- Dispatch handler part (from stock 0xD0CE) ---
+	jnb	0x00, cmd_0c_skip_adjust	; bit 0x20.0
+	lcall	_video_adjust
+cmd_0c_skip_adjust:
+	mov	dptr, #0xF9AF
+	mov	a, #0x22
+	movx	@dptr, a
+	mov	a, #0x02
+	movx	@dptr, a
+
+	; --- Cmd_handler part (from stock 0xD104+) ---
 	mov	a, 0x37
 	xrl	a, #0x3C
 	jz	cmd_0c_state_ok
@@ -842,8 +853,8 @@ regprog_check2:
 	; Trampolines at fixed CODE addresses
 	; Padding fills from code end to each trampoline offset.
 	; ================================================================
-	; Pad from code end (+0x5E5) to first trampoline (+0x612)
-	.ds	(0x612 - 0x5E5)
+	; Pad from code end (+0x5F4) to first trampoline (+0x612)
+	.ds	(0x612 - 0x5F4)
 
 	; +0x612: mul16 trampoline (ROM calls LCALL 0xD212)
 	ljmp	_mul16
