@@ -39,6 +39,7 @@ standard HID XDATA read (0xB5) and write (0xB6) commands:
 | 0x10 | I2C write | Send byte to I2C device |
 | 0x11 | I2C read | Read byte from I2C device register |
 | 0x12 | I2C scan | Scan 6 addresses, return bitmap |
+| 0xFE | Identify | Returns "@kraln" |
 
 The I2C master turns the capture dongle into a USB-to-I2C bridge — useful for
 communicating with sensors, EEPROMs, or other I2C devices on the same board.
@@ -55,6 +56,7 @@ Mailbox at `0xDDF0-0xDDF9`, same HID protocol:
 | 0x04 | DAC write | Set DAC configuration (F880/F005/F020) |
 | 0x05 | GPIO read | P0, P2, P3, P3ALT, DAC readback |
 | 0x06 | GPIO write | Set P0, P2, or P3 port values |
+| 0xFE | Identify | Returns "@kraln" |
 
 ### MS2109 Features (HDMI Capture)
 

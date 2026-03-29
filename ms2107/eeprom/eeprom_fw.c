@@ -853,6 +853,16 @@ void process_mailbox(void)
         mbox_status = 0x02;
         break;
 
+    case 0xFE:  /* Firmware signature */
+        mbox_resp0 = '@';
+        mbox_resp1 = 'k';
+        mbox_resp2 = 'r';
+        mbox_resp3 = 'a';
+        mbox_resp4 = 'l';
+        mbox_resp5 = 'n';
+        mbox_status = 0x02;
+        break;
+
     default:
         mbox_status = 0xFF;                 /* unknown command */
         break;
