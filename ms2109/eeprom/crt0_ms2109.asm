@@ -319,6 +319,9 @@ mbox_skip:
 
 	; cmd 0x00: init video registers
 	jnz	cmd_not_00
+	; Override USB PID during init
+	lcall	_set_usb_pid
+	; Original cmd 0 logic
 	mov	dptr, #0xC781
 	mov	a, #0x04
 	movx	@dptr, a
@@ -869,7 +872,8 @@ regprog_check2:
 	; Padding fills from code end to each trampoline offset.
 	; ================================================================
 	; Pad from code end (+0x609) to first trampoline (+0x612)
-	.ds	(0x612 - 0x609)		; recalculated
+	; Pad from code end (+0x60C) to mul16 trampoline (+0x612)
+	.ds	(0x612 - 0x60C)
 
 	; +0x612: mul16 trampoline (ROM calls LCALL 0xD212)
 	ljmp	_mul16
@@ -880,7 +884,21 @@ regprog_check2:
 	; +0x623: jump_table_engine trampoline
 	ljmp	_jump_table_engine
 
-	; +0x626: _mbox_identify fits in the gap before +0x67D
+	; +0x626: functions in the trampoline gap before +0x67D
+
+	; Set USB PID (override ROM default 0x2109)
+	; Change the two immediate values below to set a custom PID.
+	; Format: little-endian (low byte first).
+	; Default: 0x2109 = 09 21 (stock). Example: 0x2110 = 10 21.
+_set_usb_pid:
+	mov	dptr, #0xC692
+	mov	a, #0x09	; PID low byte
+	movx	@dptr, a
+	inc	dptr
+	mov	a, #0x21	; PID high byte
+	movx	@dptr, a
+	ret
+
 _mbox_identify:
 	mov	dptr, #0xDE04
 	mov	a, #0x40	; '@'
@@ -903,7 +921,7 @@ _mbox_identify:
 	ret
 
 	; padding to +0x67D
-	.ds	(0x67D - 0x641)
+	.ds	(0x67D - 0x64C)
 
 	; +0x67D: math_func trampoline
 	ljmp	_math_func
