@@ -259,8 +259,14 @@ Total: 1983 bytes, 13 bytes free. No stock dump dependency at build time.
 
 ## EEPROM Recovery
 
-When writing the EEPROM in-circuit via Bus Pirate, use **2.5V** (not 3.3V).
-At 3.3V the MS2109 chip back-powers through board traces and its I2C
-controller interferes with writes. At 2.5V the chip stays below its
-operating threshold. The WP pin must be grounded via a Bus Pirate IO pin.
-USB must be disconnected from the target device before writing.
+When writing the EEPROM in-circuit, the supply voltage must be low enough
+that the MS2109 chip does not power up through the board traces. At 3.3V
+the chip back-powers and its I2C controller interferes with writes (ACKs
+but doesn't commit). At 2.5V the chip stays below its operating threshold.
+
+Requirements for in-circuit programming:
+- Supply voltage: **2.5V** (not 3.3V)
+- USB cable **disconnected** from the target device
+- EEPROM WP pin grounded
+- I2C pull-ups enabled
+- EEPROM type: 24C16 (2KB, 8 block addresses 0x50-0x57)
