@@ -5,48 +5,10 @@
 	.area HOME    (CODE)
 
 	; ================================================================
-	; MS2109 EEPROM Firmware — pure assembly
+	; MS2109 EEPROM Firmware — self-contained, pure assembly
 	;
-	; The CODE/XDATA overlay at 0xCC00+ is RAM-backed. The ROM copies
-	; code_length bytes from EEPROM. No ROM fallthrough for unwritten
-	; addresses.
-	;
-	; ROM calls into our overlay at fixed CODE addresses:
-	;   0xCC00 (+0x000): normal hook entry
-	;   0xCC10 (+0x010): callback entry
-	;   0xCC20 (+0x020): IRQ hook entry
-	;   0xCD52 (+0x152): EDID data (read via MOVC)
-	;   0xCE52 (+0x252): reg_table (read via MOVC)
-	;   0xCE6B (+0x26B): video_config function (LCALL)
-	;   0xD212 (+0x612): mul16 (LCALL, ~54 ROM call sites)
-	;   0xD223 (+0x623): jump_table_engine (LCALL)
-	;   0xD27D (+0x67D): math_func (LCALL from video_config)
-	;
-	; Trampolines at fixed offsets jump to implementations placed
-	; contiguously in the free area. The gap between code and
-	; trampolines is filled with .ds padding.
-	;
-	; TODO: reimplement dispatch (0xD03A) and cmd_handler (0xD104)
-	; so the normal hook can do passthrough for video pipeline setup.
-	; Currently the normal hook just does mailbox + RET — boots and
-	; enumerates but no video output.
-	;
-	; Layout:
-	;   +0x000: LJMP _normal_hook_entry (3)
-	;   +0x003: padding (13)
-	;   +0x010: callback (15)
-	;   +0x01F: 0xFF padding (1)
-	;   +0x020: IRQ handler inline (306, ends +0x151)
-	;   +0x152: EDID data (256)
-	;   +0x252: reg_table (25)
-	;   +0x26B: LJMP _video_config trampoline (3)
-	;   +0x26E: free code area (~577 bytes)
-	;   +0x4F4: padding (~286 bytes)
-	;   +0x612: LJMP _mul16 trampoline (3)
-	;   +0x615: padding (14)
-	;   +0x623: LJMP _jump_table_engine trampoline (3)
-	;   +0x626: padding (87)
-	;   +0x67D: LJMP _math_func trampoline (3)
+	; All command handlers reimplemented. No overlay dependencies
+	; except our own trampolines and real ROM function calls.
 	; ================================================================
 
 
@@ -75,10 +37,7 @@
 
 	; ================================================================
 	; +0x20: IRQ handler inline (306 bytes, +0x20 to +0x151)
-	; Calls real ROM functions directly (not overlay thunks):
-	;   0x6069 = video_process
-	;   0x48E6 = hw_init
-	; Calls our _irq_register_program (in free area)
+	; Calls real ROM: 0x6069 (video_process), 0x48E6 (hw_init)
 	; ================================================================
 
 	mov	a, 0x33
@@ -241,8 +200,7 @@ irq_done:
 
 
 	; ================================================================
-	; +0x152: EDID data (256 bytes, editable)
-	; ROM function 0x6345 reads from CODE 0xCD52 via MOVC.
+	; +0x152: EDID data (256 bytes)
 	; ================================================================
 	.db	0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00
 	.db	0x21, 0x57, 0x36, 0x18, 0xBD, 0xE9, 0x02, 0x00
@@ -277,7 +235,7 @@ irq_done:
 	.db	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 	.db	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB2
 
-	; +0x252: reg_table (25 bytes, editable)
+	; +0x252: reg_table (25 bytes)
 	.db	0x0A, 0x8B, 0x02, 0x00, 0x05, 0x0A, 0x8B, 0x02
 	.db	0x00, 0x15, 0x16, 0x05, 0x00, 0x80, 0x1A, 0x06
 	.db	0x00, 0x20, 0xA1, 0x07, 0x00, 0x40, 0x42, 0x0F
@@ -288,12 +246,12 @@ irq_done:
 
 
 	; ================================================================
-	; Free code area (+0x26E onward)
+	; Normal hook: mailbox dispatch + ROM command handling
+	;
+	; The ROM calls this with R7 = command ID. We process our
+	; mailbox, then handle the ROM command inline (reimplemented
+	; from the stock dispatch at 0xD03A and cmd_handler at 0xD104).
 	; ================================================================
-
-	; --- Normal hook: mailbox dispatch + RET ---
-	; TODO: add passthrough (LCALL 0xD03A / LJMP 0xD104) once
-	; dispatch and cmd_handler are reimplemented at those addresses
 _normal_hook_entry:
 	push	psw
 	push	acc
@@ -305,16 +263,14 @@ _normal_hook_entry:
 	mov	a, r7
 	movx	@dptr, a
 
-	; Only process mailbox on cmd 2 (main loop)
+	; --- Mailbox processing (cmd 2 only) ---
 	cjne	r7, #0x02, mbox_skip
-
 	mov	dptr, #0xDE00
 	movx	a, @dptr
 	jz	mbox_skip
-	mov	r7, a
+	mov	r6, a		; R6 = mailbox command
 
 	cjne	a, #0x01, mbox_not_01
-	; cmd 0x01: signal status
 	mov	dptr, #0xDE0C
 	movx	a, @dptr
 	mov	dptr, #0xDE04
@@ -325,9 +281,7 @@ _normal_hook_entry:
 	movx	@dptr, a
 	sjmp	mbox_done
 mbox_not_01:
-
 	cjne	a, #0x05, mbox_not_05
-	; cmd 0x05: GPIO read
 	mov	dptr, #0xDE04
 	mov	a, 0x80
 	movx	@dptr, a
@@ -339,13 +293,10 @@ mbox_not_01:
 	movx	@dptr, a
 	sjmp	mbox_done
 mbox_not_05:
-
-	; unknown command
 	mov	dptr, #0xDE03
 	mov	a, #0xFF
 	movx	@dptr, a
 	sjmp	mbox_clear
-
 mbox_done:
 	mov	dptr, #0xDE03
 	mov	a, #0x02
@@ -354,8 +305,250 @@ mbox_clear:
 	mov	dptr, #0xDE00
 	clr	a
 	movx	@dptr, a
-
 mbox_skip:
+
+	; --- ROM command dispatch (reimplemented from 0xD03A table) ---
+	mov	a, r7
+
+	; cmd 0x00: init video registers
+	jnz	cmd_not_00
+	mov	dptr, #0xC781
+	mov	a, #0x04
+	movx	@dptr, a
+	mov	dptr, #0xC783
+	mov	a, #0x20
+	movx	@dptr, a
+	mov	dptr, #0xC782
+	mov	a, #0x1C
+	movx	@dptr, a
+	clr	a
+	mov	dptr, #0xDE0C
+	movx	@dptr, a
+	mov	dptr, #0xF80B
+	mov	a, #0xC1
+	movx	@dptr, a
+	mov	dptr, #0xF814
+	mov	a, #0x23
+	movx	@dptr, a
+	clr	0x0C		; bit 0x21.4
+	ljmp	cmd_done
+cmd_not_00:
+
+	; cmd 0x01: init video mode
+	cjne	a, #0x01, cmd_not_01
+	mov	dptr, #0xFE20
+	mov	a, #0x2A
+	movx	@dptr, a
+	lcall	_init_helper
+	mov	dptr, #0xC697
+	mov	a, #0x02
+	movx	@dptr, a
+	ljmp	cmd_done
+cmd_not_01:
+
+	; cmd 0x02: main loop video processing
+	cjne	a, #0x02, cmd_not_02
+	lcall	_video_proc_check
+	mov	dptr, #0xEFE0
+	movx	a, @dptr
+	jb	acc.6, cmd02_has_signal
+	ljmp	cmd_done
+cmd02_has_signal:
+	mov	dptr, #0xEFE8
+	mov	a, #0x40
+	movx	@dptr, a
+	inc	dptr
+	clr	a
+	movx	@dptr, a
+	inc	dptr
+	movx	@dptr, a
+	inc	dptr
+	movx	@dptr, a
+	mov	dptr, #0xC776
+	clr	a
+	movx	@dptr, a
+	inc	dptr
+	mov	a, #0xC8
+	movx	@dptr, a
+	ljmp	cmd_done
+cmd_not_02:
+
+	; cmd 0x08: callback with data table address (tail call)
+	cjne	a, #0x08, cmd_not_08
+	pop	dph
+	pop	dpl
+	pop	b
+	pop	acc
+	pop	psw
+	mov	r3, #0xFF
+	mov	r2, #0xCD
+	mov	r1, #0x52
+	ljmp	0xCC10		; callback (tail call, returns to ROM)
+cmd_not_08:
+
+	; cmd 0x0A: set F9AF
+	cjne	a, #0x0A, cmd_not_0A
+	mov	dptr, #0xF9AF
+	mov	a, #0x22
+	movx	@dptr, a
+	ljmp	cmd_done
+cmd_not_0A:
+
+	; cmd 0x0B: init video register block
+	cjne	a, #0x0B, cmd_not_0B
+	mov	dptr, #0xF92C
+	mov	a, #0x20
+	movx	@dptr, a
+	mov	dptr, #0xE33C
+	mov	a, #0xF5
+	movx	@dptr, a
+	inc	dptr
+	mov	a, #0x0F
+	movx	@dptr, a
+	inc	dptr
+	clr	a
+	movx	@dptr, a
+	inc	dptr
+	movx	@dptr, a
+	mov	dptr, #0xFEBA
+	mov	a, #0x08
+	movx	@dptr, a
+	ljmp	cmd_done
+cmd_not_0B:
+
+	; cmd 0x0C: timing register programming based on IRAM[0x36]
+	cjne	a, #0x0C, cmd_not_0C_bounce
+	sjmp	cmd_is_0C
+cmd_not_0C_bounce:
+	ljmp	cmd_not_0C
+cmd_is_0C:
+	mov	a, 0x37
+	xrl	a, #0x3C
+	jz	cmd_0c_state_ok
+	ljmp	cmd_done
+cmd_0c_state_ok:
+	mov	a, 0x36
+	clr	c
+	subb	a, #0x06
+	jc	cmd_0c_range_ok
+	ljmp	cmd_done
+cmd_0c_range_ok:
+
+	mov	a, 0x36
+	cjne	a, #0x01, cmd_0c_not1
+	mov	dptr, #0xFD03
+	mov	a, #0x09
+	movx	@dptr, a
+	mov	dptr, #0xFD02
+	mov	a, #0x42
+	movx	@dptr, a
+cmd_0c_not1:
+	mov	a, 0x36
+	cjne	a, #0x02, cmd_0c_not2
+	mov	dptr, #0xFD03
+	mov	a, #0x08
+	movx	@dptr, a
+	mov	dptr, #0xFD02
+	mov	a, #0x55
+	movx	@dptr, a
+cmd_0c_not2:
+	mov	a, 0x36
+	cjne	a, #0x03, cmd_0c_not3
+	mov	dptr, #0xFD03
+	mov	a, #0x07
+	movx	@dptr, a
+	mov	dptr, #0xFD02
+	mov	a, #0x25
+	movx	@dptr, a
+	mov	dptr, #0xF807
+	mov	a, #0x0A
+	movx	@dptr, a
+cmd_0c_not3:
+	mov	a, 0x36
+	cjne	a, #0x04, cmd_0c_not4
+	mov	dptr, #0xFD03
+	mov	a, #0x06
+	movx	@dptr, a
+	mov	dptr, #0xFD02
+	mov	a, #0x83
+	movx	@dptr, a
+	mov	dptr, #0xF807
+	mov	a, #0x08
+	movx	@dptr, a
+cmd_0c_not4:
+	mov	a, 0x36
+	cjne	a, #0x05, cmd_0c_not5
+	mov	dptr, #0xFD03
+	mov	a, #0x06
+	movx	@dptr, a
+	mov	dptr, #0xFD02
+	mov	a, #0x49
+	movx	@dptr, a
+	mov	dptr, #0xF807
+	mov	a, #0x09
+	movx	@dptr, a
+cmd_0c_not5:
+
+	; Tail check: C6B5:C6B6 >= 0x0BB8?
+	setb	c
+	mov	dptr, #0xC6B6
+	movx	a, @dptr
+	subb	a, #0xB8
+	mov	dptr, #0xC6B5
+	movx	a, @dptr
+	subb	a, #0x0B
+	jnc	cmd_0c_check_c6aa
+	ljmp	cmd_done
+cmd_0c_check_c6aa:
+	mov	dptr, #0xC6AA
+	movx	a, @dptr
+	jb	acc.0, cmd_0c_write_regs
+	ljmp	cmd_done
+cmd_0c_write_regs:
+	mov	dptr, #0xF92E
+	mov	a, #0x22
+	movx	@dptr, a
+	mov	dptr, #0xF922
+	mov	a, #0x82
+	movx	@dptr, a
+	ljmp	cmd_done
+cmd_not_0C:
+
+	; cmd 0x0E: init helper (same as part of cmd 0x01)
+	cjne	a, #0x0E, cmd_not_0E
+	lcall	_init_helper
+	ljmp	cmd_done
+cmd_not_0E:
+
+	; cmd 0x0F: clear video registers
+	cjne	a, #0x0F, cmd_not_0F
+	clr	a
+	mov	dptr, #0xC54F
+	movx	@dptr, a
+	mov	dptr, #0xEFD0
+	movx	@dptr, a
+	inc	dptr
+	mov	a, #0x30
+	movx	@dptr, a
+	inc	dptr
+	clr	a
+	movx	@dptr, a
+	inc	dptr
+	movx	@dptr, a
+	ljmp	cmd_done
+cmd_not_0F:
+
+	; cmd 0x14: video adjust + delay
+	cjne	a, #0x14, cmd_not_14
+	lcall	_video_adjust
+	mov	r7, #0xFF
+	lcall	_delay_helper
+	ljmp	cmd_done
+cmd_not_14:
+
+	; default: NOP (just return)
+
+cmd_done:
 	pop	dph
 	pop	dpl
 	pop	b
@@ -364,7 +557,130 @@ mbox_skip:
 	ret
 
 
-	; --- Register programming (inline mul16) ---
+	; ================================================================
+	; Helper functions
+	; ================================================================
+
+	; _init_helper: ROM 0x603C, write F814, ROM 0x5884
+_init_helper:
+	lcall	0x603C
+	mov	dptr, #0xF814
+	mov	a, #0x33
+	movx	@dptr, a
+	dec	a		; A = 0x32
+	movx	@dptr, a
+	lcall	0x5884
+	ret
+
+	; _delay_helper: DE0A=R7, ROM 0x69FB
+_delay_helper:
+	mov	dptr, #0xDE0A
+	mov	a, r7
+	movx	@dptr, a
+	lcall	0x69FB
+	ret
+
+	; _video_proc_check: check F1F0, copy video adj regs (from 0xD249)
+_video_proc_check:
+	mov	dptr, #0xF1F0
+	movx	a, @dptr
+	jnz	vpc_ret
+	clr	0xAF		; EA = 0 (disable interrupts)
+	mov	a, 0x3B
+	anl	a, #0x0F
+	jz	vpc_restore_ea
+	; Copy video adjustment registers
+	mov	dptr, #0xC6A0
+	movx	a, @dptr
+	mov	dptr, #0xFE90
+	movx	@dptr, a
+	mov	dptr, #0xC6A2
+	movx	a, @dptr
+	mov	dptr, #0xFE91
+	movx	@dptr, a
+	mov	dptr, #0xC6A4
+	movx	a, @dptr
+	mov	dptr, #0xFE93
+	movx	@dptr, a
+	mov	dptr, #0xC6A6
+	movx	a, @dptr
+	mov	dptr, #0xFE92
+	movx	@dptr, a
+	clr	a
+	mov	0x3B, a
+vpc_restore_ea:
+	setb	0xAF		; EA = 1 (re-enable interrupts)
+vpc_ret:
+	ret
+
+	; _video_adjust: check signal state, call video_config (from 0xD1B6)
+_video_adjust:
+	mov	dptr, #0xF806
+	mov	a, #0x30
+	movx	@dptr, a
+	; Read pixel clock: R6:R7 = [C6C6]:[C6C7]
+	mov	dptr, #0xC6C6
+	movx	a, @dptr
+	mov	r6, a
+	inc	dptr
+	movx	a, @dptr
+	mov	r7, a
+	; Compare with [C6B1]:[C6B2]
+	clr	c
+	mov	dptr, #0xC6B2
+	movx	a, @dptr
+	subb	a, r7
+	mov	dptr, #0xC6B1
+	movx	a, @dptr
+	subb	a, r6
+	jc	va_no_signal
+	; Check [C6AA] bit 0
+	mov	dptr, #0xC6AA
+	movx	a, @dptr
+	jnb	acc.0, va_no_signal
+	; Check IRAM[0x36] and timing thresholds
+	mov	a, 0x36
+	cjne	a, #0x01, va_not_mode1
+	mov	a, 0x37
+	setb	c
+	subb	a, #0x14
+	jc	va_check_mode2
+	mov	dptr, #0xC6B5
+	movx	a, @dptr
+	setb	c
+	subb	a, #0x0B
+	jnc	va_set_f806_20
+va_not_mode1:
+	mov	a, 0x36
+	cjne	a, #0x02, va_clear_r7
+	mov	a, 0x37
+	setb	c
+	subb	a, #0x0A
+	jc	va_clear_r7
+	mov	dptr, #0xC6B5
+	movx	a, @dptr
+	setb	c
+	subb	a, #0x0B
+	jc	va_clear_r7
+va_set_f806_20:
+	mov	dptr, #0xF806
+	mov	a, #0x20
+	movx	@dptr, a
+va_check_mode2:
+va_clear_r7:
+	clr	a
+	mov	r7, a
+	sjmp	va_call_vc
+va_no_signal:
+	mov	r7, #0x01
+va_call_vc:
+	lcall	_video_config
+	ret
+
+
+	; ================================================================
+	; Register programming (inline mul16, reads reg_table at 0xCE52)
+	; ================================================================
 _irq_register_program:
 	clr	a
 	mov	r7, a
@@ -398,7 +714,6 @@ regprog_inner1:
 	inc	dptr
 	movx	a, @dptr
 	mov	r3, a
-	; inline mul16
 	mov	0x82, r7
 	mov	0x83, r6
 	mov	a, #0x2E
@@ -411,7 +726,6 @@ regprog_inner1:
 	mul	ab
 	add	a, 0x83
 	mov	0x83, a
-	; + counter + 0xC0BF
 	mov	a, 0x82
 	add	a, r3
 	mov	0x82, a
@@ -524,7 +838,32 @@ regprog_check2:
 	ret
 
 
-	; --- Video config (stock bytes, CODE 0xCE6B) ---
+	; ================================================================
+	; Trampolines at fixed CODE addresses
+	; Padding fills from code end to each trampoline offset.
+	; ================================================================
+	; Pad from code end (+0x5E5) to first trampoline (+0x612)
+	.ds	(0x612 - 0x5E5)
+
+	; +0x612: mul16 trampoline (ROM calls LCALL 0xD212)
+	ljmp	_mul16
+
+	; padding to +0x623
+	.ds	(0x623 - 0x615)
+
+	; +0x623: jump_table_engine trampoline
+	ljmp	_jump_table_engine
+
+	; padding to +0x67D
+	.ds	(0x67D - 0x626)
+
+	; +0x67D: math_func trampoline
+	ljmp	_math_func
+
+
+	; ================================================================
+	; Video config function (after trampolines, called via +0x26B)
+	; ================================================================
 _video_config:
 	.db	0xA9, 0x07, 0x90, 0xC6, 0xC4, 0xE0, 0xFE, 0xA3
 	.db	0xE0, 0xFF, 0x90, 0xC6, 0xAF, 0xE0, 0xFC, 0xA3
@@ -559,7 +898,11 @@ _video_config:
 	.db	0x00, 0xF0, 0x22
 
 
-	; --- mul16: DPTR = DPTR * A ---
+	; ================================================================
+	; ROM-callable implementations (after trampolines)
+	; ================================================================
+
+	; mul16: DPTR = DPTR * A (17 bytes)
 _mul16:
 	mov	0xF0, a
 	xch	a, 0x82
@@ -572,7 +915,7 @@ _mul16:
 	mov	0x83, a
 	ret
 
-	; --- jump_table_engine: Keil C51 switch/case ---
+	; jump_table_engine: Keil C51 switch/case (37 bytes)
 _jump_table_engine:
 	pop	0x83
 	pop	0x82
@@ -605,7 +948,7 @@ jte_check_case:
 	inc	dptr
 	sjmp	jte_scan
 
-	; --- math_func: save regs to XDATA 0xDE00, call ROM 0x52DD ---
+	; math_func: save regs, call ROM 0x52DD (21 bytes)
 _math_func:
 	mov	dptr, #0xDE00
 	mov	a, r6
@@ -624,30 +967,6 @@ _math_func:
 	movx	@dptr, a
 	lcall	0x52DD
 	ret
-
-
-	; ================================================================
-	; Trampolines at fixed CODE addresses
-	; Padding fills gaps between code and trampoline offsets.
-	; ================================================================
-
-	; Pad from code end (+0x4F4) to +0x612
-	.ds	(0x612 - 0x4F4)
-
-	; +0x612: mul16 trampoline (ROM calls LCALL 0xD212)
-	ljmp	_mul16
-
-	; +0x615..0x622: padding
-	.ds	(0x623 - 0x615)
-
-	; +0x623: jump_table_engine trampoline
-	ljmp	_jump_table_engine
-
-	; +0x626..0x67C: padding
-	.ds	(0x67D - 0x626)
-
-	; +0x67D: math_func trampoline
-	ljmp	_math_func
 
 
 	.area GSINIT  (CODE)
