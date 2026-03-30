@@ -13,7 +13,9 @@
   - Root causes: P3ALT clear broke pin control; Bus B delay too fast
   - Fix: leave P3ALT at default, set delay 0x0F at init
   - Mailbox cmds: 0x10 write, 0x11 read, 0x12 scan (7-bit addrs)
-- [ ] Feature: test pattern generator (no-host mode)
+- [x] Feature: test pattern generator (host-side, ms_testpattern.py)
+  - SMPTE ECR-1-1978, PM5544, solid colors, grid
+  - Sends frames via USB bulk EP4, no display drivers needed
 - [ ] Feature: power management (DAC standby on host disconnect)
 - [ ] Host-side Python tool for mailbox protocol
 - Note: PAL/NTSC mode switching is host-side via 0xA6 protocol

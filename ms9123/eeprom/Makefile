@@ -21,8 +21,7 @@ eeprom_fw.ihx: crt0_ms9123.rel eeprom_fw.rel
 
 # Convert to raw binary
 eeprom_fw.bin: eeprom_fw.ihx
-	objcopy -I ihex -O binary $< $@ 2>/dev/null || \
-	makebin -p $< $@
+	sdobjcopy -I ihex -O binary $< $@
 
 # Build complete EEPROM image
 eeprom_image.bin: eeprom_fw.bin

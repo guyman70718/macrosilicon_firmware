@@ -1,5 +1,3 @@
-SDCC_PATH = /c/Program Files/SDCC/bin
-export PATH := $(SDCC_PATH):$(PATH)
 CC = sdcc
 AS = sdas8051
 # --data-loc 0x0B: avoid bank 0 (0x00-0x07) to preserve ROM's registers.

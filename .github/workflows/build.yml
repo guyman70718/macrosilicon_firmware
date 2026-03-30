@@ -1,0 +1,85 @@
+name: Build Firmware
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install SDCC
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y sdcc
+
+    - name: Build MS2107
+      run: |
+        cd ms2107/eeprom
+        make clean
+        make eeprom_fw.bin
+        python3 build_eeprom.py eeprom_fw.bin eeprom_image.bin
+        echo "MS2107 code size: $(wc -c < eeprom_fw.bin) bytes"
+
+    - name: Build MS2109
+      run: |
+        cd ms2109/eeprom
+        make clean
+        make eeprom_fw.bin
+        python build_eeprom.py eeprom_fw.bin eeprom_image.bin
+        echo "MS2109 code size: $(wc -c < eeprom_fw.bin) bytes"
+
+    - name: Build MS9123
+      run: |
+        cd ms9123/eeprom
+        make clean
+        make eeprom_fw.bin
+        python3 build_eeprom.py eeprom_fw.bin eeprom_image.bin
+        echo "MS9123 code size: $(wc -c < eeprom_fw.bin) bytes"
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware-images
+        path: |
+          ms2107/eeprom/eeprom_image.bin
+          ms2109/eeprom/eeprom_image.bin
+          ms9123/eeprom/eeprom_image.bin
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: firmware-images
+        path: artifacts
+
+    - name: Prepare release files
+      run: |
+        cd artifacts
+        mv ms2107/eeprom/eeprom_image.bin ms2107_eeprom.bin
+        mv ms2109/eeprom/eeprom_image.bin ms2109_eeprom.bin
+        mv ms9123/eeprom/eeprom_image.bin ms9123_eeprom.bin
+
+    - name: Create release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          artifacts/ms2107_eeprom.bin
+          artifacts/ms2109_eeprom.bin
+          artifacts/ms9123_eeprom.bin
+        generate_release_notes: true
