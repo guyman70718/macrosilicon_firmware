@@ -15,8 +15,9 @@
   - Mailbox cmds: 0x10 write, 0x11 read, 0x12 scan (7-bit addrs)
 - [ ] Feature: test pattern generator (no-host mode)
 - [ ] Feature: power management (DAC standby on host disconnect)
-- [ ] Tune PAL timing values (currently best-guess from datasheet)
 - [ ] Host-side Python tool for mailbox protocol
+- Note: PAL/NTSC mode switching is host-side via 0xA6 protocol
+  (mode 0x0200=NTSC 720x480, 0x1100=PAL 720x576) — confirmed on CRT
 
 ## MS2109 (HDMI Capture)
 

@@ -87,7 +87,6 @@ __xdata __at(0xDDF9) uint8_t mbox_resp5;
 
 /* Mailbox command IDs */
 #define MBOX_CMD_STATUS         0x01  /* Read display status */
-#define MBOX_CMD_OUTPUT_MODE    0x02  /* Set PAL/NTSC output mode */
 #define MBOX_CMD_DAC_READ       0x03  /* Read DAC output levels */
 #define MBOX_CMD_DAC_WRITE      0x04  /* Write DAC configuration */
 #define MBOX_CMD_GPIO_READ      0x05  /* Read GPIO port state */
@@ -430,37 +429,6 @@ void process_mailbox(void)
         mbox_resp3 = output_param_lo;       /* IRAM[0x45] */
         mbox_resp4 = host_connect_state;    /* IRAM[0x4B] */
         mbox_resp5 = connect_event;         /* XDATA[0xDE0A] */
-        mbox_status = 0x02;
-        break;
-
-    /* ── Output mode switching (PAL/NTSC) ── */
-    case MBOX_CMD_OUTPUT_MODE:
-        /* p0 = mode:
-         *   0 = NTSC (stock default)
-         *   1 = PAL
-         * Triggers display reconfiguration via the event flag mechanism.
-         * The periodic handler picks up the flag and reconfigures the
-         * scaler, DAC, and output timing. */
-        if (p0 == 0) {
-            /* NTSC: 720x480 */
-            scaler_hsize = 0x60;
-            scaler_vtiming0 = 0x02;
-            scaler_vtiming1 = 0x03;
-            cvbs_timing = 0x0D;
-        } else if (p0 == 1) {
-            /* PAL: 720x576 — timing values TBD, using best guesses
-             * from datasheet and common PAL parameters.
-             * These may need tuning on real hardware. */
-            scaler_hsize = 0x60;
-            scaler_vtiming0 = 0x02;
-            scaler_vtiming1 = 0x04;     /* PAL has more vertical lines */
-            cvbs_timing = 0x0C;         /* Slightly different sync */
-        } else {
-            mbox_status = 0xFF;
-            goto done_mbox;
-        }
-        /* Trigger PLL/clock reconfiguration */
-        rom_clock_reconfig();
         mbox_status = 0x02;
         break;
 
