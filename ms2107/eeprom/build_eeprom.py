@@ -5,30 +5,21 @@ MS2107 EEPROM Image Builder
 Takes compiled firmware binary and wraps it in a valid EEPROM image
 with header, USB descriptors, and checksums.
 
-IMPORTANT: Uses a reference EEPROM (original dump) as the header template
-to preserve all config bytes, including the non-checksummed bytes at
-0x0B-0x0F which contain USB descriptor pointers the ROM needs.
-
 Usage:
     python3 build_eeprom.py <code.bin> <output.bin> [options]
     python3 build_eeprom.py --verify <eeprom.bin>
 
 Options:
-    --ref <file>        Reference EEPROM for header template (default: ../../dumps/MS2107.BIN)
-    --vid XXXX          Override USB VID (hex)
-    --pid XXXX          Override USB PID (hex)
-    --product "string"  Override USB product string (max 15 chars)
-    --verify <file>     Verify checksums and header of existing image
-    --diff <file>       Diff header against reference
+    --vid XXXX          USB VID (hex, default 534D)
+    --pid XXXX          USB PID (hex, default 0021)
+    --product "string"  USB product string (max 15 chars)
+    --verify <file>     Verify checksums of existing image
 """
 
 import struct
 import argparse
 import sys
-import os
 
-
-DEFAULT_REF = os.path.join(os.path.dirname(__file__), '..', '..', 'dumps', 'MS2107.BIN')
 
 # MS2107 EEPROM header byte map (from ROM trace):
 #
@@ -60,46 +51,25 @@ DEFAULT_HEADER = {
 }
 
 
-def build_eeprom(code_bin, ref_eeprom=None, vid=None, pid=None, product=None,
-                 hook_flags=None, video_config=None, feature_flags=None, video_config2=None):
-    """Build a complete 2048-byte EEPROM image.
+def build_eeprom(code_bin, vid=None, pid=None, product=None):
+    """Build a complete 2048-byte EEPROM image."""
 
-    If ref_eeprom is provided, copies the full header from it (safest).
-    Otherwise builds header from DEFAULT_HEADER values.
-    """
+    eeprom = bytearray(b'\xFF' * 2048)
 
-    eeprom = bytearray(2048)
-    for i in range(len(eeprom)):
-        eeprom[i] = 0xFF
-
-    if ref_eeprom is not None:
-        # Copy full header from reference — preserves all config bytes
-        eeprom[0x00:0x30] = bytearray(ref_eeprom[0x00:0x30])
-    else:
-        # Build header from scratch
-        eeprom[0x00] = 0x08  # Magic
-        eeprom[0x01] = 0x16
-        _vid = vid if vid is not None else DEFAULT_HEADER['vid']
-        _pid = pid if pid is not None else DEFAULT_HEADER['pid']
-        struct.pack_into('>H', eeprom, 4, _vid)
-        struct.pack_into('>H', eeprom, 6, _pid)
-        eeprom[0x08] = hook_flags if hook_flags is not None else DEFAULT_HEADER['hook_flags']
-        eeprom[0x09] = video_config if video_config is not None else DEFAULT_HEADER['video_config']
-        eeprom[0x0A] = feature_flags if feature_flags is not None else DEFAULT_HEADER['feature_flags']
-        eeprom[0x0B] = video_config2 if video_config2 is not None else DEFAULT_HEADER['video_config2']
-        eeprom[0x0C:0x10] = DEFAULT_HEADER['reserved']
-        vid = None  # Already set
-        pid = None
+    # Header
+    eeprom[0x00] = 0x08  # Magic
+    eeprom[0x01] = 0x16
+    struct.pack_into('>H', eeprom, 4, vid if vid is not None else DEFAULT_HEADER['vid'])
+    struct.pack_into('>H', eeprom, 6, pid if pid is not None else DEFAULT_HEADER['pid'])
+    eeprom[0x08] = DEFAULT_HEADER['hook_flags']
+    eeprom[0x09] = DEFAULT_HEADER['video_config']
+    eeprom[0x0A] = DEFAULT_HEADER['feature_flags']
+    eeprom[0x0B] = DEFAULT_HEADER['video_config2']
+    eeprom[0x0C:0x10] = DEFAULT_HEADER['reserved']
 
     # === Update code length ===
     code_len = len(code_bin)
     struct.pack_into('>H', eeprom, 2, code_len)
-
-    # === Optional overrides (applied on top of ref or defaults) ===
-    if vid is not None:
-        struct.pack_into('>H', eeprom, 4, vid)
-    if pid is not None:
-        struct.pack_into('>H', eeprom, 6, pid)
 
     if product is not None:
         product_bytes = product.encode('ascii')[:15]
@@ -130,8 +100,8 @@ def build_eeprom(code_bin, ref_eeprom=None, vid=None, pid=None, product=None,
     return eeprom
 
 
-def verify_eeprom(eeprom, ref_eeprom=None):
-    """Verify checksums and optionally compare header against reference."""
+def verify_eeprom(eeprom):
+    """Verify checksums and header."""
     magic = struct.unpack('>H', eeprom[0:2])[0]
     code_len = struct.unpack('>H', eeprom[2:4])[0]
     end = 0x30 + code_len
@@ -162,23 +132,6 @@ def verify_eeprom(eeprom, ref_eeprom=None):
     else:
         print(f"USB config (0x0B-0x0F): {' '.join(f'{b:02X}' for b in non_csum)}")
 
-    # Compare against reference if provided
-    if ref_eeprom is not None:
-        diffs = []
-        for i in range(0x30):  # compare full header
-            if eeprom[i] != ref_eeprom[i]:
-                diffs.append(i)
-
-        # Exclude expected differences (code length at 0x02-0x03, strings at 0x10-0x2F)
-        unexpected = [i for i in diffs if i not in range(0x02, 0x04) and i not in range(0x10, 0x30)]
-        if unexpected:
-            print(f"\nUnexpected header differences vs reference:")
-            for i in unexpected:
-                print(f"  [0x{i:02X}] ref=0x{ref_eeprom[i]:02X} img=0x{eeprom[i]:02X}")
-            ok = False
-        else:
-            print(f"Header matches reference (excluding code length and strings)")
-
     return ok
 
 
@@ -186,56 +139,30 @@ def main():
     parser = argparse.ArgumentParser(description='MS2107 EEPROM Image Builder')
     parser.add_argument('code', nargs='?', help='Compiled code binary')
     parser.add_argument('output', nargs='?', help='Output EEPROM image')
-    parser.add_argument('--ref', default=DEFAULT_REF, help='Reference EEPROM for header template')
     parser.add_argument('--vid', type=lambda x: int(x, 16), help='USB VID (hex)')
     parser.add_argument('--pid', type=lambda x: int(x, 16), help='USB PID (hex)')
     parser.add_argument('--product', help='USB product string (max 15 chars)')
     parser.add_argument('--verify', help='Verify an existing EEPROM image')
-    parser.add_argument('--diff', help='Diff header against reference')
 
     args = parser.parse_args()
-
-    # Load reference
-    ref_path = args.ref
-    if os.path.exists(ref_path):
-        with open(ref_path, 'rb') as f:
-            ref_eeprom = f.read()
-    else:
-        ref_eeprom = None
 
     if args.verify:
         with open(args.verify, 'rb') as f:
             eeprom = bytearray(f.read())
-        ok = verify_eeprom(eeprom, ref_eeprom)
+        ok = verify_eeprom(eeprom)
         sys.exit(0 if ok else 1)
 
-    if args.diff:
-        if ref_eeprom is None:
-            print(f"Error: reference not found at {ref_path}")
-            sys.exit(1)
-        with open(args.diff, 'rb') as f:
-            eeprom = bytearray(f.read())
-        print("Header diff (0x00-0x2F):")
-        for i in range(0x30):
-            if eeprom[i] != ref_eeprom[i]:
-                print(f"  [0x{i:02X}] ref=0x{ref_eeprom[i]:02X} img=0x{eeprom[i]:02X}")
-        sys.exit(0)
-
     if not args.code or not args.output:
-        parser.error("code and output are required (or use --verify/--diff)")
-
-    if ref_eeprom is None:
-        print(f"Note: no reference EEPROM at {ref_path}, building from defaults")
+        parser.error("code and output are required (or use --verify)")
 
     with open(args.code, 'rb') as f:
         code = f.read()
 
     print(f"Code size: {len(code)} bytes")
-    print(f"Reference: {ref_path}")
 
-    eeprom = build_eeprom(code, ref_eeprom, vid=args.vid, pid=args.pid, product=args.product)
+    eeprom = build_eeprom(code, vid=args.vid, pid=args.pid, product=args.product)
 
-    ok = verify_eeprom(eeprom, ref_eeprom)
+    ok = verify_eeprom(eeprom)
 
     with open(args.output, 'wb') as f:
         f.write(eeprom)
