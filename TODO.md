@@ -8,17 +8,11 @@
 
 ## MS9123 (USB Display Adapter)
 
-- [ ] Feature: I2C master — NOT WORKING
-  - EEPROM is on **Bus B** (P3.3/P3.4), not Bus A (P3.7/P3.6)
-  - E5 HID command reads EEPROM via Bus B successfully
-  - Calling the same Bus B ROM functions from firmware returns 0x00
-  - Full 32K ROM dump available (`dumps/MS9123_CODE_lower32k.bin`)
-  - All ROM I2C helpers fully disassembled (see i2c_analysis.md)
-  - ROM helpers do `CLR P2.x` when driving LOW (pin mux control?)
-  - Scan shows false ACKs (P2.x stuck low) — root cause unclear
-  - SFR_95 bit 6 toggle crashes device (even with CCAP0L gate)
-  - USB IRQ hook at CODE 0xC903 — needs LJMP trampoline at +0xD3
-  - Next: trace E5 handler setup, investigate HW I2C at F022-F025
+- [x] Feature: I2C master — WORKING
+  - EEPROM is on **Bus B** (P3.3/P3.4), 24C16 at 7-bit 0x50-0x57
+  - Root causes: P3ALT clear broke pin control; Bus B delay too fast
+  - Fix: leave P3ALT at default, set delay 0x0F at init
+  - Mailbox cmds: 0x10 write, 0x11 read, 0x12 scan (7-bit addrs)
 - [ ] Feature: test pattern generator (no-host mode)
 - [ ] Feature: power management (DAC standby on host disconnect)
 - [ ] Tune PAL timing values (currently best-guess from datasheet)

@@ -79,26 +79,27 @@ extern void rom_safe_reconfig(void);
  * Called once during init hook 2. */
 extern void rom_output_timing_setup(void);
 
-/* ROM 0x6AB8 - I2C Bus A start condition
- * SDA (P3.7) pulled low while SCL high. */
+/* ROM 0x6ACC - I2C Bus B start condition
+ * SDA (P3.3) pulled low while SCL (P3.4) high.
+ * Bus B is the runtime EEPROM bus (24C16 at 0x50-0x57).
+ * NOTE: Do NOT clear P3ALT bits 3,4 — the ROM's bit-bang I2C
+ * works with them set. Clearing disconnects pins from GPIO. */
 extern void rom_i2c_start(void);
 
-/* ROM 0x6919 - I2C Bus A stop condition
- * SDA (P3.7) released while SCL high. */
+/* ROM 0x69A3 - I2C Bus B stop condition
+ * SDA (P3.3) released while SCL (P3.4) high. */
 extern void rom_i2c_stop(void);
 
-/* ROM 0x46BC - I2C Bus A write byte
- * Sends byte, returns 0=ACK, 1=NAK in DPL.
- * ACK detected via bit 0x02 (byte 0x20, bit 2). */
+/* ROM 0x472C - I2C Bus B write byte
+ * Sends raw 8-bit value on wire. Returns 0=ACK, 1=NAK in DPL.
+ * ACK detected via bit 0x06 (byte 0x20, bit 6).
+ * Caller must shift 7-bit device address left and set R/W bit. */
 extern uint8_t rom_i2c_write(uint8_t val);
 
-/* ROM 0x4B9B - I2C Bus A read byte
+/* ROM 0x4BFC - I2C Bus B read byte
  * ack=0 sends ACK (continue), ack=non-zero sends NAK (last byte).
- * Returns read byte in DPL. */
-extern uint8_t rom_i2c_read(uint8_t ack);
-
-/* I2C Bus B read — ROM 0x4BFC
- * nak=0 sends ACK (continue), nak=non-zero sends NAK (last byte).
+ * Returns read byte in DPL.
  * Bus B uses bit 0x05 for ACK/NAK control (not bit 0x02 like Bus A). */
+extern uint8_t rom_i2c_read(uint8_t ack);
 
 #endif /* ROM_STUBS_H */

@@ -133,64 +133,49 @@ A physical USB unplug/replug is required for code at 0xC903 to take effect.
 | 0xC61E   | B   | 0x02  | Bus B delay threshold |
 
 
-## Current Status: NOT WORKING
+## Current Status: WORKING
 
-I2C master from EEPROM firmware code does not work. The ROM's E5 HID
-command successfully reads the EEPROM via Bus B, but calling the same
-Bus B functions from our firmware (either main loop or USB IRQ handler
-context) always returns 0x00.
+I2C master from EEPROM firmware code works correctly. The firmware can
+read and write the 24C16 EEPROM (0x50-0x57) via Bus B ROM functions.
 
-### What works
+### Root causes (resolved)
 
-- ROM I2C write functions execute (no crash)
-- I2C scan returns ACK for all addresses (false positives — see below)
-- E5 HID EEPROM read works correctly
-- Firmware runs stably, other features work
+Two issues prevented I2C from working:
 
-### What doesn't work
+1. **P3ALT clearing disconnected pins from GPIO.** The ROM's bit-bang
+   I2C works with P3ALT bits 3,4 SET (their default state 0x3C). Our
+   code was clearing these bits thinking they needed to be in "GPIO mode",
+   but clearing them actually disconnected the pins — only a START
+   condition was generated, with no subsequent clock pulses. The E5 HID
+   handler never touches P3ALT and works fine.
 
-- I2C reads always return 0x00
-- I2C scan shows false ACKs (0x3F bitmap for ALL address ranges including empty)
-- Pure GPIO bit-bang (P3.6/P3.7 or P3.3/P3.4) doesn't reach the EEPROM
-- Changing SFR_95 crashes the device (even with EA=0, CCAP0L=1)
+2. **Bus B delay value 0x02 was too fast for EEPROM reads.** The ROM
+   boot init sets XDATA[0xC61E] = 0x02 for Bus B. This is sufficient
+   for the E5 handler (which has additional call-chain overhead slowing
+   it down) but too fast for direct calls to the low-level I2C functions.
+   At delay=0x02, data reads returned 0xFD (mostly 1-bits — SDA sampled
+   before EEPROM drives it). Setting delay to 0x0F (matching Bus A)
+   gives reliable reads.
 
-### Root cause analysis
+### Key lessons
 
-The false ACK problem is the key. The write function's ACK check reads
-the SDA input pin (P2.x). If P2.x always reads 0, every address appears
-to ACK, but no device actually received the data. During the read phase,
-no device drives SDA, so all bits read as 0.
+- P3ALT on the MS9123 does NOT work like a simple GPIO/alt-function
+  mux. The ROM's bit-bang I2C uses SETB/CLR P3.x with P3ALT bits set,
+  and the pins toggle correctly. Clearing P3ALT breaks this.
+- Bus Pirate 5 clips on Bus B pins prevent EEPROM boot load — the
+  device must boot without the sniffer attached, then the clip can be
+  added for runtime captures.
+- The I2C sniffer confirmed E5 produces full transactions while our
+  (broken) code produced only a START condition — this narrowed the
+  root cause to pin control rather than protocol or addressing issues.
 
-GPIO bit-bang tests confirmed that direct P3.6/P3.7 GPIO writes do NOT
-reach the EEPROM — a pure bit-bang scan finds no devices. The ROM I2C
-helpers must use some mechanism beyond simple GPIO toggling (possibly
-an internal bus mux controlled by the CLR P2.x pattern).
+### Working configuration
 
-### Approaches tried
-
-1. Bus A ROM functions — reads 0x00
-2. Bus B ROM functions from main loop — reads 0x00
-3. Bus B ROM functions from USB IRQ handler — reads 0x00
-4. Pure GPIO bit-bang (P3.6/P3.7 and P3.3/P3.4) — no device responds
-5. P3ALT changes (clear/set bits 3,4) — no effect
-6. EA=0 during I2C — no effect on reads (no crash either)
-7. EX0=0/EX1=0 during I2C — no effect
-8. SFR_95 bit 6 toggle (matches ROM safe_reconfig 0x67D1) — crashes
-9. SFR_9B=0, SFR_9D=0 — no effect
-10. P2.2 set/clear — no effect
-11. SETB/CLR P2.7 before reads — no effect
-12. Calling ROM higher-level function 0x55E5 directly — reads 0x00
-
-### Next steps
-
-- Trace the E5 HID handler more completely to find any hidden setup
-- Investigate hardware I2C controller at XDATA 0xF022-0xF025
-- Use logic analyzer on Bus B pins (P3.3/P3.4) during E5 vs firmware I2C
-  to compare actual bus activity
-- Check if the ROM's USB interrupt handler configures a bus mux register
-  that the I2C helpers depend on
-- Investigate SFR 0x93 (DPX/analog gate) more carefully — display_hw_init
-  clears it, and the ROM's `dac_snapshot_and_check` also clears it
+- Bus B ROM functions called directly (0x6ACC/0x69A3/0x472C/0x4BFC)
+- P3ALT left at default (0x3C) — do NOT clear bits 3,4
+- EA=0 during transactions (block periodic handler)
+- XDATA[0xC61E] = 0x0F (Bus B delay, set at init)
+- 7-bit device addresses, shifted left by firmware for wire format
 
 
 ## Comparison with MS2107 and MS2109
@@ -205,5 +190,6 @@ an internal bus mux controlled by the CLR P2.x pattern).
 | EEPROM bus     | same as I2C  | same as I2C  | Bus B (not Bus A) |
 | ACK flag       | bit 0x23.6   | bit 0x21.0   | A: bit 0x02, B: bit 0x06 |
 | Read NAK flag  | bit 0x1D     | bit 0x08     | A: bit 0x02, B: bit 0x05 |
-| INT disable    | EX0=0, EX1=0 | EX0=0, EX1=0 | TBD              |
-| I2C status     | Working      | Working      | Not working      |
+| INT disable    | EX0=0, EX1=0 | EX0=0, EX1=0 | EA=0             |
+| Addr convention| 7-bit        | 7-bit        | 7-bit            |
+| I2C status     | Working      | Working      | Working          |

@@ -67,6 +67,7 @@ __xdata __at(0xC347) uint8_t scaler_vtiming0; /* Output scaler vertical timing 0
 __xdata __at(0xC348) uint8_t scaler_vtiming1; /* Output scaler vertical timing 1 */
 __xdata __at(0xC4DA) uint8_t cvbs_timing;     /* CVBS output timing parameter */
 __xdata __at(0xC612) uint8_t output_active;   /* Display output pipeline active flag */
+__xdata __at(0xC61E) uint8_t i2c_b_delay;    /* Bus B I2C delay (ROM default 0x02, too fast) */
 __xdata __at(0xDDFF) uint8_t host_mailbox;    /* Legacy: write 0x5A to trigger reconfig */
 
 /* === Extended host command mailbox (XDATA 0xDDF0-0xDDFE) ===
@@ -91,9 +92,9 @@ __xdata __at(0xDDF9) uint8_t mbox_resp5;
 #define MBOX_CMD_DAC_WRITE      0x04  /* Write DAC configuration */
 #define MBOX_CMD_GPIO_READ      0x05  /* Read GPIO port state */
 #define MBOX_CMD_GPIO_WRITE     0x06  /* Write GPIO port state */
-#define MBOX_CMD_I2C_WRITE      0x10  /* I2C Bus A write */
-#define MBOX_CMD_I2C_READ       0x11  /* I2C Bus A read */
-#define MBOX_CMD_I2C_SCAN       0x12  /* I2C Bus A scan */
+#define MBOX_CMD_I2C_WRITE      0x10  /* I2C Bus B write */
+#define MBOX_CMD_I2C_READ       0x11  /* I2C Bus B read */
+#define MBOX_CMD_I2C_SCAN       0x12  /* I2C Bus B scan */
 __xdata __at(0xDE04) uint8_t xfer_reg;        /* Data transfer register */
 __xdata __at(0xDE05) uint8_t xfer_buf[4];     /* Transfer buffer (4 bytes via store_r4r5r6r7) */
 __xdata __at(0xDE09) uint8_t delay_arg;       /* Delay argument storage */
@@ -178,6 +179,10 @@ void dac_snapshot_and_check(void)       /* 0xC97E */
 void init_hook2(void)                   /* 0xC943 */
 {
     rom_display_hw_init();           /* LCALL 0x5D16 — init DAC, scaler, output */
+
+    /* Bus B I2C delay: ROM sets 0x02 which is too fast for EEPROM reads.
+     * 0x0F matches Bus A delay and works reliably. */
+    i2c_b_delay = 0x0F;
 
     /* Set bit 0 of byte 0x20 (bit-addressable) — global "display active" flag */
     *(__data uint8_t *)0x20 |= 0x01;
@@ -512,13 +517,12 @@ void process_mailbox(void)
 
     /* ── I2C Bus B write ── */
     case MBOX_CMD_I2C_WRITE:
+        /* p0 = 7-bit device address, p1 = data byte */
         EA = 0;
-        SFR_P3ALT &= 0xE7;     /* clear bits 3,4: disable SPI, enable GPIO for I2C */
         rom_i2c_start();
-        nak = rom_i2c_write(p0);
+        nak = rom_i2c_write(p0 << 1);
         if (nak) {
             rom_i2c_stop();
-            SFR_P3ALT |= 0x18;
             EA = 1;
             mbox_resp0 = 0;
             mbox_status = 0xFF;
@@ -526,7 +530,6 @@ void process_mailbox(void)
         }
         nak = rom_i2c_write(p1);
         rom_i2c_stop();
-        SFR_P3ALT |= 0x18;
         EA = 1;
         mbox_resp0 = nak ? 0 : 1;
         mbox_status = 0x02;
@@ -534,16 +537,12 @@ void process_mailbox(void)
 
     /* ── I2C Bus B read ── */
     case MBOX_CMD_I2C_READ:
-        /* Must disable interrupts — the periodic handler modifies
-         * pin/SFR state that corrupts I2C. E5 HID works because it
-         * runs from the USB interrupt (blocks periodic handler). */
+        /* p0 = 7-bit device address, p1 = register address */
         EA = 0;
-        SFR_P3ALT &= 0xE7;
         rom_i2c_start();
-        nak = rom_i2c_write(p0);
+        nak = rom_i2c_write(p0 << 1);
         if (nak) {
             rom_i2c_stop();
-            SFR_P3ALT |= 0x18;
             EA = 1;
             mbox_resp0 = 0;
             mbox_status = 0xFF;
@@ -551,23 +550,22 @@ void process_mailbox(void)
         }
         rom_i2c_write(p1);
         rom_i2c_start();
-        rom_i2c_write(p0 | 0x01);
+        rom_i2c_write((p0 << 1) | 0x01);
         mbox_resp0 = rom_i2c_read(1);
         rom_i2c_stop();
-        SFR_P3ALT |= 0x18;
         EA = 1;
         mbox_status = 0x02;
         break;
 
     /* ── I2C Bus B scan ── */
     case MBOX_CMD_I2C_SCAN:
+        /* p0 = 7-bit base address, scans 8 consecutive addresses */
         EA = 0;
-        SFR_P3ALT &= 0xE7;
         {
             uint8_t bitmap = 0;
             uint8_t i;
-            for (i = 0; i < 6; i++) {
-                uint8_t addr = p0 + (i << 1);
+            for (i = 0; i < 8; i++) {
+                uint8_t addr = (p0 + i) << 1;
                 rom_i2c_start();
                 nak = rom_i2c_write(addr);
                 rom_i2c_stop();
@@ -578,7 +576,6 @@ void process_mailbox(void)
             mbox_resp0 = bitmap;
             mbox_resp1 = p0;
         }
-        SFR_P3ALT |= 0x18;
         EA = 1;
         mbox_status = 0x02;
         break;
