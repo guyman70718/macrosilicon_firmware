@@ -126,7 +126,7 @@ Standard I2C STOP: SDA rises while SCL is high.
 
 ### i2c_write (0x46BC) -- Bus A
 
-Input: R7 = byte to send (Keil convention)
+Input: R7 = byte to send (ROM convention)
 Output: Carry flag = 1 if ACK received, 0 if NAK
 
 ```c
@@ -262,7 +262,7 @@ SDCC `__bit __at()` uses the bit address directly.
 
 ## Calling Convention for EEPROM Firmware
 
-The ROM I2C functions use Keil C51 calling convention (R7 for first arg,
+The ROM I2C functions use ROM calling convention (R7 for first arg,
 return in R7/carry). Our EEPROM code is compiled with SDCC (DPL for args).
 Assembly wrappers in crt0 are needed.
 

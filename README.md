@@ -12,6 +12,23 @@ interface. No hardware modification required — just reflash the EEPROM.
 | **MS9123** | USB to CVBS/S-Video display | Working | Display status, PAL/NTSC mode, DAC control, GPIO |
 | **MS2109** | HDMI to USB capture | Working | HDMI capture, signal detection, I2C master, GPIO, PID override |
 
+## What's New Over Stock
+
+The stock EEPROM firmware handles signal detection and video configuration
+but exposes no user-accessible interface. This project adds:
+
+- **Host command mailbox** — read signal status, video parameters, and
+  hardware state over USB HID without any driver changes
+- **I2C master** — turn the dongle into a USB-to-I2C bridge for
+  communicating with sensors, EEPROMs, or other devices on the board
+- **GPIO read/write** — direct port access for hardware debugging
+- **Image adjustment** (MS2107) — brightness, contrast, saturation, hue
+- **Video input switching** (MS2107) — force CVBS, S-Video, or auto-detect
+- **DAC control** (MS9123) — read/write the 10-bit video DAC
+- **PAL/NTSC switching** (MS9123) — change output video standard on the fly
+- **USB PID override** (MS2109) — customize the USB product ID at build time
+- **Editable EDID** (MS2109) — customize the HDMI EDID the source device sees
+
 ## How It Works
 
 These USB video dongles contain an 8051 microcontroller that loads firmware
@@ -174,10 +191,10 @@ firmware can always be restored by reflashing a backup.
 
 ### Calling Conventions
 
-The mask ROM uses Keil C51 calling conventions. The MS2107 and MS9123
-firmware is compiled with SDCC, which uses different conventions:
+The mask ROM appears to use Keil-style calling conventions. The MS2107
+and MS9123 firmware is compiled with SDCC, which uses different conventions:
 
-| | Keil C51 (ROM) | SDCC (firmware) |
+| | ROM (Keil-style) | SDCC (firmware) |
 |--|----------------|-----------------|
 | First uint8_t arg | R7 | DPL |
 | Return value | R7 / carry | DPL |

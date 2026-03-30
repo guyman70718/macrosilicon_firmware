@@ -986,7 +986,7 @@ _mul16:
 	mov	0x83, a
 	ret
 
-	; jump_table_engine: Keil C51 switch/case (37 bytes)
+	; jump_table_engine: 8051 switch/case (37 bytes)
 _jump_table_engine:
 	pop	0x83
 	pop	0x82

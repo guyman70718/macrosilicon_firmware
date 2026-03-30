@@ -5,7 +5,7 @@
 ```
 1. Clear IRAM (0x00-0x7F = 0)
 2. Set SP = 0x55
-3. Process Keil C51 data init table at CODE:0x1BEE
+3. Process data init table at CODE:0x1BEE
 4. Call chip_init (0x5DA4)
 ```
 

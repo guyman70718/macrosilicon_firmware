@@ -5,11 +5,11 @@
 ```
 1. Clear all IRAM (0x00-0xFF = 0)
 2. Set SP = 0x5C
-3. Process Keil C51 data initialization table at CODE:0x12AF
+3. Process data initialization table at CODE:0x12AF
 4. Call main_init (0x48DB)
 ```
 
-Standard Keil C51 startup. The init table at 0x12AF contains encoded
+Standard 8051 startup. The init table at 0x12AF contains encoded
 instructions for initializing global variables to their compiled defaults.
 
 ## Main Init (0x48DB)
