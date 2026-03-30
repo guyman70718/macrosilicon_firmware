@@ -25,4 +25,10 @@ __sbit __at(0x80) P0_0;    /* P0.0 - USB host active (frames incoming) */
 __sbit __at(0x83) P0_3;    /* P0.3 - DAC/output ready indicator */
 __sbit __at(0x86) P0_6;    /* P0.6 - display output active indicator */
 
+/* Pin mux / bus control SFRs (undocumented, from ROM analysis) */
+__sfr __at(0x95) SFR_95;   /* Bit 6: bus ownership (1=video DAC, 0=I2C available) */
+__sfr __at(0x9B) SFR_9B;   /* Pin mux config, set to 4 by display_hw_init */
+__sfr __at(0x9D) SFR_9D;   /* Pin mux config, set to 4 by display_hw_init */
+__sfr __at(0xEA) CCAP0L_REG; /* Clock gate / config access enable */
+
 #endif /* HW_DEFS_H */

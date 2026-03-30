@@ -227,8 +227,26 @@ void init_hook2(void)                   /* 0xC943 */
  *    USB host connected/disconnected — run connection check
  *    to update display output state.
  * ================================================================ */
+/* XDATA location for interrupt-context I2C test result */
+__xdata __at(0xDE0E) uint8_t i2c_test_result;
+__xdata __at(0xDE0F) uint8_t i2c_test_trigger;
+
 void periodic_handler(void)             /* 0xC903 */
 {
+    /* I2C from interrupt context — triggered by writing 1 to 0xDE0F */
+    if (i2c_test_trigger) {
+        i2c_test_trigger = 0;
+        SFR_P3ALT &= 0xE7;
+        rom_i2c_start();
+        rom_i2c_write(0xA0);    /* EEPROM addr 0x50, write */
+        rom_i2c_write(0x00);    /* byte address 0 */
+        rom_i2c_start();        /* repeated start */
+        rom_i2c_write(0xA1);    /* addr 0x50, read */
+        i2c_test_result = rom_i2c_read(1);
+        rom_i2c_stop();
+        SFR_P3ALT |= 0x18;
+    }
+
     /* Check for display reconfiguration request */
     if (event_flags_hi & 0x04) {
         rom_clock_reconfig();           /* LCALL 0x66BD — wait for clock stable, retune */
@@ -492,35 +510,41 @@ void process_mailbox(void)
         mbox_status = 0x02;
         break;
 
-    /* ── I2C Bus A write ── */
+    /* ── I2C Bus B write ── */
     case MBOX_CMD_I2C_WRITE:
-        /* p0 = device address (7-bit << 1)
-         * p1 = register/data byte
-         * Must set P2.2 before I2C — enables bus mux (cleared by display init). */
-        P2 |= 0x04;                        /* SETB P2.2: enable I2C bus */
+        EA = 0;
+        SFR_P3ALT &= 0xE7;     /* clear bits 3,4: disable SPI, enable GPIO for I2C */
         rom_i2c_start();
         nak = rom_i2c_write(p0);
         if (nak) {
             rom_i2c_stop();
+            SFR_P3ALT |= 0x18;
+            EA = 1;
             mbox_resp0 = 0;
             mbox_status = 0xFF;
             break;
         }
         nak = rom_i2c_write(p1);
         rom_i2c_stop();
+        SFR_P3ALT |= 0x18;
+        EA = 1;
         mbox_resp0 = nak ? 0 : 1;
         mbox_status = 0x02;
         break;
 
-    /* ── I2C Bus A read ── */
+    /* ── I2C Bus B read ── */
     case MBOX_CMD_I2C_READ:
-        /* p0 = device address (7-bit << 1)
-         * p1 = register address */
-        P2 |= 0x04;                        /* SETB P2.2: enable I2C bus */
+        /* Must disable interrupts — the periodic handler modifies
+         * pin/SFR state that corrupts I2C. E5 HID works because it
+         * runs from the USB interrupt (blocks periodic handler). */
+        EA = 0;
+        SFR_P3ALT &= 0xE7;
         rom_i2c_start();
         nak = rom_i2c_write(p0);
         if (nak) {
             rom_i2c_stop();
+            SFR_P3ALT |= 0x18;
+            EA = 1;
             mbox_resp0 = 0;
             mbox_status = 0xFF;
             break;
@@ -530,13 +554,15 @@ void process_mailbox(void)
         rom_i2c_write(p0 | 0x01);
         mbox_resp0 = rom_i2c_read(1);
         rom_i2c_stop();
+        SFR_P3ALT |= 0x18;
+        EA = 1;
         mbox_status = 0x02;
         break;
 
-    /* ── I2C Bus A scan ── */
+    /* ── I2C Bus B scan ── */
     case MBOX_CMD_I2C_SCAN:
-        /* p0 = start address (7-bit << 1), scans 6 addresses */
-        P2 |= 0x04;                        /* SETB P2.2: enable I2C bus */
+        EA = 0;
+        SFR_P3ALT &= 0xE7;
         {
             uint8_t bitmap = 0;
             uint8_t i;
@@ -552,6 +578,8 @@ void process_mailbox(void)
             mbox_resp0 = bitmap;
             mbox_resp1 = p0;
         }
+        SFR_P3ALT |= 0x18;
+        EA = 1;
         mbox_status = 0x02;
         break;
 

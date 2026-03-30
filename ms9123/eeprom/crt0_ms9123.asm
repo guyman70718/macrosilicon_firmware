@@ -209,60 +209,67 @@ _rom_output_timing_setup::
 
 
 	; ================================================================
-	; I2C Bus A (EEPROM bus) wrappers
-	; SDA = P3.7 (inverted: CLR=high, SETB=low)
-	; SCL via ROM helpers (0x71D7/0x736B)
-	; ACK/NAK via bit 0x02 (byte 0x20, bit 2)
-	; No interrupt disable needed (P3.7 is not an interrupt pin)
+	; I2C Bus B (peripheral/EEPROM bus) wrappers
+	; The EEPROM is on Bus B, NOT Bus A (confirmed from ROM analysis).
+	; SDA out = P3.3 (INT1), SDA in = P2.3
+	; SCL = P3.4 (T0)
+	; ACK/NAK via carry (write) and bit 0x05 (read)
+	; Must disable EX1 — P3.3 is INT1!
 	; ================================================================
 
-	; ROM 0x6AB8 — I2C start condition. No parameters.
+	; ROM 0x6ACC — I2C Bus B start condition
 _rom_i2c_start::
 	.globl _rom_i2c_start
-	lcall	0x6AB8
+	lcall	0x6ACC
 	ret
 
-	; ROM 0x6919 — I2C stop condition. No parameters.
+	; ROM 0x69A3 — I2C Bus B stop condition
 _rom_i2c_stop::
 	.globl _rom_i2c_stop
-	lcall	0x6919
+	lcall	0x69A3
 	ret
 
-	; ROM 0x46BC — I2C write byte.
-	; SDCC DPL = byte to send. ROM uses Keil R7.
-	; Returns: ACK status from bit 0x02 (byte 0x20, bit 2).
-	;   bit set = ACK received (success)
-	;   bit clear = NAK
-	; We return 0=ACK, 1=NAK in SDCC DPL.
+	; ROM 0x472C — I2C Bus B write byte
+	; DPL = byte to send. ROM uses R7.
+	; Returns carry=1 if ACK. We return 0=ACK, 1=NAK in DPL.
 _rom_i2c_write::
 	.globl _rom_i2c_write
-	mov	r7, dpl				; SDCC DPL -> Keil R7
-	lcall	0x46BC
+	mov	r7, dpl
+	lcall	0x472C
 	clr	a
-	jb	0x02, i2c_w_ack			; bit 0x02 set = ACK
+	jc	i2c_w_ack			; carry set = ACK
 	inc	a				; A=1 = NAK
 i2c_w_ack:
-	mov	dpl, a				; DPL: 0=ACK, 1=NAK
+	mov	dpl, a
 	ret
 
-	; ROM 0x4B9B — I2C read byte.
-	; SDCC DPL = ACK flag: 0=send ACK, non-zero=send NAK.
-	; ROM uses bit 0x02: set=NAK, clear=ACK.
-	; Returns read byte in Keil R7 -> SDCC DPL.
+	; ROM 0x4BFC — I2C Bus B read byte
+	; DPL = nak flag (0=ACK, non-zero=NAK/last byte)
+	; ROM uses bit 0x05 (byte 0x20 bit 5): set=NAK, clear=ACK
+	; Returns read byte in R7 -> DPL
 _rom_i2c_read::
 	.globl _rom_i2c_read
 	mov	a, dpl
 	jz	i2c_r_ack
-	setb	0x02				; NAK
+	setb	0x05				; NAK
 	sjmp	i2c_r_do
 i2c_r_ack:
-	clr	0x02				; ACK
+	clr	0x05				; ACK
 i2c_r_do:
-	lcall	0x4B9B
-	mov	dpl, r7				; read byte -> SDCC DPL
+	lcall	0x4BFC
+	mov	dpl, r7
 	ret
 
+
+	; === +0xD3 (0xC903): USB IRQ hook trampoline ===
+	; ROM calls 0xC903 directly (not through +0x30) when
+	; EEPROM[4] bit 5 is set. Must have LJMP here.
+	.ds	(0xD3 - 0xB5)		; pad to offset 0xD3
+_usb_irq_hook::
+	.globl _usb_irq_hook
+	ljmp	_keil_to_sdcc_periodic	; same handler as +0x30
 
 	; No GSINIT needed — ROM handles initialization
 	.area GSINIT  (CODE)
 	.area GSFINAL (CODE)
+

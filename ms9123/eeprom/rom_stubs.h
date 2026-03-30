@@ -97,4 +97,8 @@ extern uint8_t rom_i2c_write(uint8_t val);
  * Returns read byte in DPL. */
 extern uint8_t rom_i2c_read(uint8_t ack);
 
+/* I2C Bus B read — ROM 0x4BFC
+ * nak=0 sends ACK (continue), nak=non-zero sends NAK (last byte).
+ * Bus B uses bit 0x05 for ACK/NAK control (not bit 0x02 like Bus A). */
+
 #endif /* ROM_STUBS_H */

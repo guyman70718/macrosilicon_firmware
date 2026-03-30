@@ -1,464 +1,209 @@
 # MS9123 I2C Implementation Analysis
 
-Reverse-engineered from ROM disassembly (disasm.asm) and Ghidra decompilation
-(decompiled.c). Cross-referenced against ms-tools MS2109 I2C implementation.
-
 ## Two Independent I2C Buses
 
-The MS9123 ROM implements **two** software bit-banged I2C buses with parallel
-function sets. Bus A is the EEPROM bus (used during boot). Bus B is used for
-runtime peripheral communication (video decoder/encoder chips on the board).
+The MS9123 ROM implements two software bit-banged I2C buses. Both use the
+same inverted open-drain pin model with parallel P3 (output) / P2 (input)
+pin pairs.
 
-### Bus A (EEPROM bus)
+**Key finding**: The EEPROM is on **Bus B** (P3.3/P3.4), not Bus A. The
+ROM's E5 HID command reads the EEPROM through Bus B functions. Bus A
+(P3.7/P3.6) is used during the initial boot EEPROM load only.
 
-| Function     | Address  | Purpose                              |
-|--------------|----------|--------------------------------------|
-| i2c_start    | `0x6AB8` | Generate START condition             |
-| i2c_stop     | `0x6919` | Generate STOP condition              |
-| i2c_write    | `0x46BC` | Send byte, return ACK in carry       |
-| i2c_read     | `0x4B9B` | Receive byte, ACK/NAK via bit 0x02  |
-| delay        | `0x613B` | NOP-sled delay, R7:R6 = threshold   |
+### Bus A (boot-time EEPROM load)
 
-Pin assignments:
-- **SDA output**: P3.7 / RD (bit address `0xB7`)
-- **SDA input**: P2.7 (bit address `0xA7`)
-- **SCL**: controlled by undisassembled helpers (see below)
+| Function   | Address  | Purpose                                    |
+|------------|----------|--------------------------------------------|
+| i2c_start  | `0x6AB8` | Generate START condition                   |
+| i2c_stop   | `0x6919` | Generate STOP condition                    |
+| i2c_write  | `0x46BC` | Send byte, ACK via bit 0x02 → carry       |
+| i2c_read   | `0x4B9B` | Receive byte, ACK/NAK via bit 0x02        |
+| delay      | `0x613B` | Countdown delay, R7:R6 = threshold        |
 
-### Bus B (peripheral bus)
+| Pin        | Port bit | Direction | Bit addr |
+|------------|----------|-----------|----------|
+| SDA output | P3.7     | Out       | 0xB7     |
+| SDA input  | P2.7     | In        | 0xA7     |
+| SCL output | P3.6     | Out       | 0xB6     |
+| SCL input  | P2.6     | In        | 0xA6     |
 
-| Function     | Address  | Purpose                              |
-|--------------|----------|--------------------------------------|
-| i2c_start    | `0x6ACC` | Generate START condition             |
-| i2c_stop     | `0x69A3` | Generate STOP condition              |
-| i2c_write    | `0x472C` | Send byte, return ACK in carry       |
-| i2c_read     | `0x4BFC` | Receive byte, ACK/NAK via bit 0x06  |
-| scl_low      | `0x64E2` | `CLR P3.4` (bit `0xB4`)             |
-| load_delay   | `0x64E4` | R7=XDATA[0xC61E], R6=0              |
+### Bus B (runtime EEPROM access, peripheral communication)
 
-Pin assignments:
-- **SDA output**: P3.3 / INT1 (bit address `0xB3`)
-- **SDA input**: P2.3 (bit address `0xA3`)
-- **SCL output**: P3.4 / T0 (bit address `0xB4`)
+| Function   | Address  | Purpose                                    |
+|------------|----------|--------------------------------------------|
+| i2c_start  | `0x6ACC` | Generate START condition                   |
+| i2c_stop   | `0x69A3` | Generate STOP condition                    |
+| i2c_write  | `0x472C` | Send byte, ACK via bit 0x06 → carry       |
+| i2c_read   | `0x4BFC` | Receive byte, ACK/NAK via bit 0x05        |
+| scl_high   | `0x64E2` | CLR P3.4 (release SCL) + delay_load       |
+| delay_load | `0x64E4` | R7=XDATA[0xC61E], R6=0                    |
+
+| Pin        | Port bit | Direction | Bit addr | Alt function |
+|------------|----------|-----------|----------|--------------|
+| SDA output | P3.3     | Out       | 0xB3     | INT1         |
+| SDA input  | P2.3     | In        | 0xA3     |              |
+| SCL output | P3.4     | Out       | 0xB4     | T0           |
+| SCL input  | P2.4     | In        | 0xA4     |              |
 
 
 ## Pin Polarity Model (Inverted Open-Drain)
 
-The MS9123 uses an **active-high pull-down** model, inverted from standard
-8051 conventions:
+Both buses use an inverted open-drain model:
 
-- `CLR P3.x` = **release** pin (goes HIGH via external pull-up)
-- `SETB P3.x` = **drive** pin LOW (activate pull-down)
+- `CLR P3.x` = **release** pin (goes HIGH via pull-up)
+- `SETB P3.x` = **drive** pin LOW
 
-Evidence: In i2c_write (`0x46BC`), when the data bit is 1 (MSB set), the
-code does `CLR P3.7` (SDA high). When the data bit is 0, it calls `0x7370`
-(which presumably does `SETB P3.7` to pull SDA low). In i2c_read (`0x4B9B`),
-`P2.7 = 1` means SDA is high (bit value 1), and `P2.7 = 0` means SDA is low
-(bit value 0) -- the read side is non-inverted.
-
-This means P3.x controls a pull-down driver (active when bit=1), and P2.x
-reads the actual line state directly.
-
-Alternatively, the functions in undisassembled ROM space (0x7370, 0x736B, etc.)
-may manipulate a GPIO mux register rather than the port bits directly. The
-exact mechanism is in ROM addresses 0x7022-0x73FF which Ghidra did not
-disassemble (the disassembly stops at 0x701F). See "Undisassembled Helpers"
-below.
+P2.x reads the actual line state directly (non-inverted).
 
 
-## Undisassembled Helper Functions
+## ROM Helper Functions (Disassembled from 32K ROM dump)
 
-These functions are in ROM space beyond Ghidra's analysis boundary (0x701F).
-They are called extensively by the I2C routines but their exact instructions
-are unknown without raw binary analysis.
+The helper functions at 0x7000+ were previously unknown. A complete lower
+32K CODE dump (`MS9123_CODE_lower32k.bin`) was obtained and disassembled,
+revealing the exact instructions.
 
-### Bus A helpers (EEPROM bus)
+### Bus A helpers
 
-| Address  | Role (inferred from calling context)                    |
-|----------|---------------------------------------------------------|
-| `0x71D7` | SCL-related: called where SCL HIGH is expected          |
-| `0x71D9` | Load delay value for Bus A timing (like 0x64E4 for B)  |
-| `0x7370` | SDA LOW (pull-down active) -- opposite of CLR P3.7      |
-| `0x736B` | SCL LOW -- opposite of 0x71D7                           |
+| Address  | Instructions                    | Purpose                |
+|----------|---------------------------------|------------------------|
+| `0x71D7` | `CLR P3.6` (falls through →)   | Release SCL (HIGH)     |
+| `0x71D9` | `MOV DPTR,#C61C; MOVX; R7=A; R6=0; RET` | Load Bus A delay value |
+| `0x736B` | `SETB P3.6; CLR P2.6; RET`     | Drive SCL LOW          |
+| `0x7370` | `SETB P3.7; CLR P2.7; RET`     | Drive SDA LOW          |
 
 ### Bus B helpers
 
-| Address  | Role (inferred from calling context)                    |
-|----------|---------------------------------------------------------|
-| `0x7384` | SDA HIGH/release (opposite of CLR P3.3)                 |
-| `0x737F` | SCL HIGH/release (opposite of CLR P3.4)                 |
+| Address  | Instructions                    | Purpose                |
+|----------|---------------------------------|------------------------|
+| `0x64E2` | `CLR P3.4` (falls through →)   | Release SCL (HIGH)     |
+| `0x64E4` | `MOV DPTR,#C61E; MOVX; R7=A; R6=0; RET` | Load Bus B delay value |
+| `0x737F` | `SETB P3.4; CLR P2.4; RET`     | Drive SCL LOW          |
+| `0x7384` | `SETB P3.3; CLR P2.3; RET`     | Drive SDA LOW          |
 
-**To determine exact instructions**: Run `xxd -s 0x71d0 -l 64 MS9123_CODE.bin`
-and `xxd -s 0x7360 -l 64 MS9123_CODE.bin` to see the raw bytes, then
-manually disassemble. Each helper is likely 2-4 bytes (SETB + RET, or
-MOV DPTR + MOVX + RET).
+### P2.x CLR pattern
+
+Every "drive LOW" helper does **two** operations: `SETB P3.x` (drive output)
+AND `CLR P2.x` (clear the corresponding input port bit). The "release HIGH"
+helpers only do `CLR P3.x` — they do NOT `SETB P2.x`.
+
+This asymmetric pattern may serve as pin mux control on the MS9123's custom
+8051 core. The exact effect of CLR P2.x on the input path is not yet fully
+understood, but it does not prevent ACK detection (the write function
+successfully reads P2.x for ACK after CLR P2.x).
 
 
-## I2C Protocol Details
+## EEPROM Access Path (E5 HID Command)
 
-### i2c_start (0x6AB8) -- Bus A
-
-```
-CLR P3.7           ; Release SDA (high) -- ensure idle state
-LCALL 0x71D7       ; SCL HIGH (release)
-LCALL 0x613B       ; delay
-LCALL 0x7370       ; SDA LOW (pull down) -- START condition
-LCALL 0x71D9       ; load delay value
-LCALL 0x613B       ; delay
-LJMP  0x736B       ; SCL LOW -- ready for first data bit
-```
-
-Standard I2C START: SDA falls while SCL is high.
-
-### i2c_stop (0x6919) -- Bus A
+The ROM's E5 HID command reads the EEPROM via this call chain:
 
 ```
-LCALL 0x7370       ; SDA LOW (pull down) -- ensure SDA is low
-LCALL 0x71D9       ; load delay
-LCALL 0x613B       ; delay
-LCALL 0x71D7       ; SCL HIGH (release)
-LCALL 0x613B       ; delay
-CLR   P3.7         ; SDA HIGH (release) -- STOP condition
-LCALL 0x71D9       ; load delay
-LJMP  0x613B       ; delay + return
+E5 handler (0x0D4F)
+  → setup (0x32E7, 0x3333)
+  → 0x6DD9: set bit 0x21.6, load params
+    → 0x53A9: EEPROM block read loop
+      → 0x5E41: read dispatcher (checks bit 0x21.6)
+        → 0x535C or 0x55E5: Bus B I2C read
+          → 0x6ACC (start), 0x472C (write), 0x4BFC (read), 0x69A3 (stop)
 ```
 
-Standard I2C STOP: SDA rises while SCL is high.
+Both 0x535C and 0x55E5 use the same Bus B low-level primitives. The
+dispatcher at 0x5E41 chooses between them based on bit 0x21.6, which is
+set from IRAM[0x5C] by the E5 handler.
 
-### i2c_write (0x46BC) -- Bus A
 
-Input: R7 = byte to send (ROM convention)
-Output: Carry flag = 1 if ACK received, 0 if NAK
+## USB IRQ Hook (0xC903)
 
-```c
-// Pseudocode reconstruction:
-XDATA[0xC598] = byte;          // store byte to shift out
-bit_0x02 = 0;                  // clear ACK flag
-XDATA[0xC599] = 0;             // bit counter
+The ROM calls CODE 0xC903 directly (not through the +0x30 periodic hook)
+when EEPROM header byte [4] bit 5 is set. This is the USB IRQ handler hook.
 
-for (i = 0; i < 8; i++) {
-    if (byte & 0x80)            // MSB first
-        CLR P3.7;               // bit=1: SDA HIGH (release)
-    else
-        CALL 0x7370;            // bit=0: SDA LOW (pull down)
+The stock firmware's periodic handler body lives at 0xC903. Custom firmware
+must place a trampoline (LJMP) at CODE offset +0xD3 (= 0xC903 with code
+base 0xC830) to redirect to the custom handler. The +0x30 hook at 0xC860
+is a separate entry point.
 
-    // Clock pulse: SCL high, delay, SCL low, delay
-    CALL 0x71D9; CALL delay;    // load timing
-    CALL 0x71D7; CALL delay;    // SCL HIGH
-    CALL 0x736B;                // SCL LOW
-    CALL 0x71D9; CALL delay;    // load timing
+**Important**: PnP disable/enable does NOT reload the EEPROM code overlay.
+A physical USB unplug/replug is required for code at 0xC903 to take effect.
 
-    byte <<= 1;
-}
 
-// ACK clock cycle (9th clock):
-CLR P3.7;                       // release SDA for slave ACK
-CALL 0x71D9; CALL delay;
-CALL 0x71D7; CALL delay;       // SCL HIGH -- slave drives ACK
+## I2C Timing Values
 
-// Wait for ACK with timeout:
-timeout = 0x10;
-while (P2.7 != 0 && count < timeout) count++;  // poll SDA
+| Address  | Bus | Value | Purpose               |
+|----------|-----|-------|-----------------------|
+| 0xC61C   | A   | 0x0F  | Bus A delay threshold |
+| 0xC61E   | B   | 0x02  | Bus B delay threshold |
 
-if (P2.7 == 0)                 // SDA low = ACK
-    bit_0x02 = 1;              // set ACK flag
 
-CALL 0x736B;                   // SCL LOW
-CALL 0x71D9; CALL delay;
+## Current Status: NOT WORKING
 
-CY = bit_0x02;                 // return ACK in carry
-RET;
-```
+I2C master from EEPROM firmware code does not work. The ROM's E5 HID
+command successfully reads the EEPROM via Bus B, but calling the same
+Bus B functions from our firmware (either main loop or USB IRQ handler
+context) always returns 0x00.
 
-**ACK convention**: Carry=1 means ACK received. Carry=0 means NAK.
-This matches the ms-tools convention where `resp.C` indicates ACK.
+### What works
 
-### i2c_read (0x4B9B) -- Bus A
+- ROM I2C write functions execute (no crash)
+- I2C scan returns ACK for all addresses (false positives — see below)
+- E5 HID EEPROM read works correctly
+- Firmware runs stably, other features work
 
-Input: bit 0x02 (bit address 0x12) controls ACK/NAK:
-  - bit 0x02 = 0: send ACK (more bytes to read)
-  - bit 0x02 = 1: send NAK (last byte)
+### What doesn't work
 
-Output: R7 = received byte
+- I2C reads always return 0x00
+- I2C scan shows false ACKs (0x3F bitmap for ALL address ranges including empty)
+- Pure GPIO bit-bang (P3.6/P3.7 or P3.3/P3.4) doesn't reach the EEPROM
+- Changing SFR_95 crashes the device (even with EA=0, CCAP0L=1)
 
-```c
-// Pseudocode reconstruction:
-XDATA[0xC599] = 0;             // received byte accumulator
-CLR P3.7;                      // release SDA (let slave drive)
-XDATA[0xC598] = 0;             // bit counter
+### Root cause analysis
 
-for (i = 0; i < 8; i++) {
-    XDATA[0xC599] <<= 1;       // shift left
-    CALL 0x71D7; CALL delay;   // SCL HIGH
-    bit = P2.7;                 // read SDA from P2.7
-    XDATA[0xC599] |= (bit & 1); // OR in LSB
-    CALL 0x736B;                // SCL LOW
-    CALL 0x71D9; CALL delay;
-}
+The false ACK problem is the key. The write function's ACK check reads
+the SDA input pin (P2.x). If P2.x always reads 0, every address appears
+to ACK, but no device actually received the data. During the read phase,
+no device drives SDA, so all bits read as 0.
 
-// ACK/NAK clock cycle:
-if (bit_0x02 == 1)             // last byte requested
-    CLR P3.7;                   // SDA HIGH (NAK = release)
-else
-    CALL 0x7370;                // SDA LOW (ACK = pull down)
+GPIO bit-bang tests confirmed that direct P3.6/P3.7 GPIO writes do NOT
+reach the EEPROM — a pure bit-bang scan finds no devices. The ROM I2C
+helpers must use some mechanism beyond simple GPIO toggling (possibly
+an internal bus mux controlled by the CLR P2.x pattern).
 
-CALL 0x71D9; CALL delay;       // clock the ACK bit
-CALL 0x71D7; CALL delay;       // SCL HIGH
-CALL 0x736B;                   // SCL LOW
-CLR P3.7;                      // release SDA
-CALL 0x71D9; CALL delay;
+### Approaches tried
 
-R7 = XDATA[0xC599];            // return byte in R7
-RET;
-```
+1. Bus A ROM functions — reads 0x00
+2. Bus B ROM functions from main loop — reads 0x00
+3. Bus B ROM functions from USB IRQ handler — reads 0x00
+4. Pure GPIO bit-bang (P3.6/P3.7 and P3.3/P3.4) — no device responds
+5. P3ALT changes (clear/set bits 3,4) — no effect
+6. EA=0 during I2C — no effect on reads (no crash either)
+7. EX0=0/EX1=0 during I2C — no effect
+8. SFR_95 bit 6 toggle (matches ROM safe_reconfig 0x67D1) — crashes
+9. SFR_9B=0, SFR_9D=0 — no effect
+10. P2.2 set/clear — no effect
+11. SETB/CLR P2.7 before reads — no effect
+12. Calling ROM higher-level function 0x55E5 directly — reads 0x00
 
-**Key difference from ms-tools**: ms-tools passes ACK/NAK in R7 (R7=0 for
-ACK, R7=1 for NAK). The MS9123 ROM uses bit variable 0x02 instead. A wrapper
-is needed if calling from C, or the bit can be set directly before calling.
+### Next steps
+
+- Trace the E5 HID handler more completely to find any hidden setup
+- Investigate hardware I2C controller at XDATA 0xF022-0xF025
+- Use logic analyzer on Bus B pins (P3.3/P3.4) during E5 vs firmware I2C
+  to compare actual bus activity
+- Check if the ROM's USB interrupt handler configures a bus mux register
+  that the I2C helpers depend on
+- Investigate SFR 0x93 (DPX/analog gate) more carefully — display_hw_init
+  clears it, and the ROM's `dac_snapshot_and_check` also clears it
 
 
 ## Comparison with MS2107 and MS2109
 
-### Address mapping
-
-| Function   | MS2107  | MS2109  | MS9123 (Bus A) | MS9123 (Bus B) |
-|------------|---------|---------|----------------|----------------|
-| i2c_start  | 0x68BD  | 0x6A8C  | **0x6AB8**     | 0x6ACC         |
-| i2c_stop   | 0x6B5B  | 0x6ABA  | **0x6919**     | 0x69A3         |
-| i2c_write  | 0x5323  | 0x4648  | **0x46BC**     | 0x472C         |
-| i2c_read   | custom  | custom  | **0x4B9B**     | 0x4BFC         |
-
-### Key differences from MS2107
-
-1. **Pin assignments**: MS2107 uses P2.3/P3.3 (shared with INT0/INT1).
-   MS9123 Bus A uses P3.7/P2.7. Bus B uses P3.3/P2.3.
-2. **ACK flag**: MS2107 uses bit 0x23.6 for ACK. MS9123 uses bit 0x02
-   (byte 0x20, bit 2) for Bus A, bit 0x06 (byte 0x20, bit 6) for Bus B.
-3. **Read ACK input**: MS2107 passes ACK/NAK in R7. MS9123 uses bit variable
-   0x02 (Bus A) or 0x05 (Bus B).
-4. **Interrupt concern**: MS2107 required disabling EX0/EX1 during I2C
-   because P3.2/P3.3 overlapped with INT0/INT1 pins. MS9123 Bus A uses
-   P3.7 (RD strobe), which is NOT an interrupt pin -- **no interrupt
-   disable needed** for Bus A.
-
-### ms-tools custom read blob (MS2109)
-
-ms-tools uploads a 5-byte shim for I2C read on the MS2109:
-```
-MOV 0x21.0, C      ; Store carry flag to bit 0x21.0
-LJMP 0x4CF3         ; Jump to ROM read routine
-```
-
-For the MS9123, the ROM read function (0x4B9B) is directly callable. The
-only issue is that the ACK/NAK is controlled by bit 0x02 instead of R7.
-From SDCC C code, this can be set directly:
-```c
-__bit __at(0x12) i2c_ack_nak;  // bit 0x02 = byte 0x20 bit 2
-i2c_ack_nak = last_byte;       // 1=NAK (last), 0=ACK (more)
-```
-
-Note: bit address 0x02 is IRAM byte 0x20, bit 2 (bit-addressable range).
-SDCC `__bit __at()` uses the bit address directly.
-
-
-## Calling Convention for EEPROM Firmware
-
-The ROM I2C functions use ROM calling convention (R7 for first arg,
-return in R7/carry). Our EEPROM code is compiled with SDCC (DPL for args).
-Assembly wrappers in crt0 are needed.
-
-### Required crt0 additions
-
-```asm
-; Bus A I2C wrappers (EEPROM bus)
-
-; i2c_start: no parameters, no return value
-_rom_i2c_start::
-    .globl _rom_i2c_start
-    lcall   0x6AB8
-    ret
-
-; i2c_stop: no parameters, no return value
-_rom_i2c_stop::
-    .globl _rom_i2c_stop
-    lcall   0x6919
-    ret
-
-; i2c_write: DPL = byte to send, returns DPL = 1 (ACK) or 0 (NAK)
-_rom_i2c_write::
-    .globl _rom_i2c_write
-    mov     r7, dpl         ; SDCC DPL -> Keil R7
-    lcall   0x46BC
-    clr     a
-    rlc     a               ; carry -> A bit 0
-    mov     dpl, a          ; return in DPL (1=ACK, 0=NAK)
-    ret
-
-; i2c_read: DPL = 0 for ACK (more bytes), 1 for NAK (last byte)
-;           returns DPL = received byte
-_rom_i2c_read::
-    .globl _rom_i2c_read
-    mov     a, dpl
-    mov     c, acc.0        ; bit 0 of param
-    mov     0x02, c         ; store to bit 0x02 (ACK/NAK control)
-    lcall   0x4B9B
-    mov     dpl, r7         ; return byte in DPL
-    ret
-```
-
-### C declarations (rom_stubs.h additions)
-
-```c
-/* I2C Bus A (EEPROM bus) primitives */
-extern void rom_i2c_start(void);
-extern void rom_i2c_stop(void);
-extern uint8_t rom_i2c_write(uint8_t byte);  /* returns 1=ACK, 0=NAK */
-extern uint8_t rom_i2c_read(uint8_t nak);    /* nak=0: ACK, nak=1: NAK */
-```
-
-### Example: read a register from an I2C device at address 0x44
-
-```c
-uint8_t i2c_read_reg(uint8_t dev_addr, uint8_t reg) {
-    uint8_t val;
-
-    rom_i2c_start();
-    if (!rom_i2c_write(dev_addr << 1))      // write address + W
-        goto fail;
-    if (!rom_i2c_write(reg))                 // register address
-        goto fail;
-    rom_i2c_start();                         // repeated start
-    if (!rom_i2c_write((dev_addr << 1) | 1)) // write address + R
-        goto fail;
-    val = rom_i2c_read(1);                   // read byte, send NAK (last)
-    rom_i2c_stop();
-    return val;
-
-fail:
-    rom_i2c_stop();
-    return 0xFF;
-}
-```
-
-
-## GPIO/Pin Mux Configuration
-
-The init_hook1 in crt0_ms9123.asm already configures the pins needed for
-Bus A I2C:
-
-```asm
-anl  0xB0, #0x3F    ; P3 &= 0x3F: clear P3.6 and P3.7
-                     ; (release/idle both pins -- P3.7 is SDA)
-anl  0xB1, #0x3F    ; SFR_P3ALT &= 0x3F: disable alternate functions
-                     ; on P3.6 and P3.7 (make them GPIO)
-```
-
-**No additional pin mux configuration is needed for I2C Bus A.** The pins
-are already set up as GPIO by the existing init_hook1.
-
-For Bus B, the SCL pin (P3.4) may need alternate function configuration
-via SFR 0xB1, but Bus B is not needed for our EEPROM firmware.
-
-
-## Interrupt Concerns
-
-**Bus A (P3.7 SDA, unknown SCL)**: P3.7 is the RD (external memory read)
-strobe on standard 8051. It is NOT an interrupt input pin. There are no
-interrupt conflicts. **Disabling EX0/EX1 is NOT required** for Bus A I2C
-operations.
-
-However, the main service loop already disables EX0 during
-`rom_usb_frame_manage()`. If I2C operations are performed from the main
-loop context (not from ISR), they should be safe without additional
-interrupt management.
-
-If I2C operations are time-sensitive and the USB ISR could interfere with
-bit-bang timing, wrapping I2C transactions with `EA = 0` / `EA = 1` would
-be prudent:
-
-```c
-EA = 0;             // disable all interrupts
-rom_i2c_start();
-// ... I2C transaction ...
-rom_i2c_stop();
-EA = 1;             // re-enable interrupts
-```
-
-
-## XDATA Scratch Space Used by I2C
-
-The ROM I2C functions use XDATA for temporary storage:
-
-| Address    | Bus | Used by       | Purpose                    |
-|------------|-----|---------------|----------------------------|
-| 0xC598     | A   | write/read    | Byte shift register        |
-| 0xC599     | A   | write/read    | Bit counter / received byte|
-| 0xC585     | A   | eeprom_read   | Device address (high)      |
-| 0xC586     | A   | eeprom_read   | Device address (low)       |
-| 0xC587     | A   | eeprom_read   | Read result byte           |
-| 0xC5D6-DC  | A   | eeprom_read   | Block read parameters      |
-| 0xC5E3     | B   | write/read    | Bit counter                |
-| 0xC5E4     | B   | write/read    | Byte shift register        |
-| 0xC5E5     | B   | write/read    | Byte to send               |
-| 0xC5E6     | B   | write         | Bit counter                |
-| 0xC61E     | B   | load_delay    | I2C clock timing value     |
-
-These addresses are ROM-internal working memory. Calling the ROM I2C
-primitives directly (start/stop/write/read) is safe -- they manage their
-own scratch space. Do not store user data at these addresses.
-
-
-## Higher-Level ROM I2C Functions
-
-These higher-level functions compose the primitives above:
-
-| Address  | Bus | Purpose                                         |
-|----------|-----|-------------------------------------------------|
-| `0x53A9` | A   | EEPROM block read (R2:R1=dest, R5=count, R7:R6=offset) |
-| `0x5E41` | A   | Single/multi-byte EEPROM read dispatcher         |
-| `0x535C` | B   | Multi-byte peripheral read (with repeated start) |
-| `0x55E5` | B   | Multi-byte peripheral write+read                 |
-
-For custom I2C master operations (talking to non-EEPROM devices), use the
-low-level primitives (start/stop/write/read) directly rather than the
-higher-level EEPROM functions, which assume specific addressing schemes.
-
-
-## Summary: What to Add for I2C Master Support
-
-1. **crt0_ms9123.asm**: Add 4 wrapper functions (start, stop, write, read)
-   as shown in the "Required crt0 additions" section above.
-
-2. **rom_stubs.h**: Add 4 function declarations for the I2C primitives.
-
-3. **No pin mux changes needed** -- init_hook1 already configures P3.7
-   as GPIO for SDA.
-
-4. **No interrupt disable needed** -- P3.7 is not an interrupt pin.
-   (Optional: wrap with EA=0/EA=1 for timing safety.)
-
-5. **Do not need a custom read blob** like ms-tools does for MS2109.
-   The ROM read function (0x4B9B) is directly callable via the wrapper.
-
-6. **Bit variable conflict check**: bit 0x02 (byte 0x20, bit 2) is used
-   by the ROM I2C for ACK/NAK control. The EEPROM firmware uses bits
-   0x08-0x0D (byte 0x21). No conflict.
-
-
-## Open Questions
-
-1. **SCL pin identity for Bus A**: The SCL control is in undisassembled
-   ROM (0x71D7 = SCL HIGH, 0x736B = SCL LOW). Need to read raw bytes at
-   these addresses to confirm which port bit is SCL. It could be P2.7
-   doing double duty (unlikely), or a dedicated SCL pin elsewhere (P3.6
-   is a candidate since init_hook1 configures both P3.6 and P3.7).
-
-2. **Bus A delay timing value**: Bus B loads timing from XDATA[0xC61E].
-   Bus A's equivalent is in 0x71D9 (undisassembled). The ROM likely stores
-   a similar timing value for Bus A at a nearby XDATA address. The default
-   I2C speed is probably ~100kHz based on the NOP-sled delay function.
-
-3. **Hardware I2C controller**: The MS9123 may have a hardware I2C
-   controller (registers at 0xF022/0xF025 written by the function at
-   0x68BD). The bit-bang implementation in the ROM might be a fallback
-   or used for specific buses. Investigation of 0xF022/0xF025 could
-   reveal a faster hardware path.
+| Feature        | MS2107       | MS2109       | MS9123           |
+|----------------|--------------|--------------|------------------|
+| I2C start      | 0x68BD       | 0x6A8C       | A: 0x6AB8, B: 0x6ACC |
+| I2C stop       | 0x6B5B       | 0x6ABA       | A: 0x6919, B: 0x69A3 |
+| I2C write      | 0x5323       | 0x4648       | A: 0x46BC, B: 0x472C |
+| I2C read       | 0x5934       | 0x4CF3       | A: 0x4B9B, B: 0x4BFC |
+| SDA/SCL pins   | P3.2/P3.3    | GPIO2/GPIO3  | A: P3.7/P3.6, B: P3.3/P3.4 |
+| EEPROM bus     | same as I2C  | same as I2C  | Bus B (not Bus A) |
+| ACK flag       | bit 0x23.6   | bit 0x21.0   | A: bit 0x02, B: bit 0x06 |
+| Read NAK flag  | bit 0x1D     | bit 0x08     | A: bit 0x02, B: bit 0x05 |
+| INT disable    | EX0=0, EX1=0 | EX0=0, EX1=0 | TBD              |
+| I2C status     | Working      | Working      | Not working      |

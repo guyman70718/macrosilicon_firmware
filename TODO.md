@@ -8,12 +8,17 @@
 
 ## MS9123 (USB Display Adapter)
 
-- [ ] Feature: I2C master — NOT WORKING (pin mux issue after display_hw_init)
-  - Bus A functions (0x6AB8/0x6919/0x46BC/0x4B9B) are correct
-  - P2.2 bus enable isn't sufficient — undocumented SFRs (0x93/0x95/0x9B/0x9D)
-    control the shared SPI/I2C pin mux and are reconfigured by display init
-  - Need to trace the full pin mux SFR sequence from boot-time EEPROM load
-  - See ms9123/rom/i2c_analysis.md for current analysis
+- [ ] Feature: I2C master — NOT WORKING
+  - EEPROM is on **Bus B** (P3.3/P3.4), not Bus A (P3.7/P3.6)
+  - E5 HID command reads EEPROM via Bus B successfully
+  - Calling the same Bus B ROM functions from firmware returns 0x00
+  - Full 32K ROM dump available (`dumps/MS9123_CODE_lower32k.bin`)
+  - All ROM I2C helpers fully disassembled (see i2c_analysis.md)
+  - ROM helpers do `CLR P2.x` when driving LOW (pin mux control?)
+  - Scan shows false ACKs (P2.x stuck low) — root cause unclear
+  - SFR_95 bit 6 toggle crashes device (even with CCAP0L gate)
+  - USB IRQ hook at CODE 0xC903 — needs LJMP trampoline at +0xD3
+  - Next: trace E5 handler setup, investigate HW I2C at F022-F025
 - [ ] Feature: test pattern generator (no-host mode)
 - [ ] Feature: power management (DAC standby on host disconnect)
 - [ ] Tune PAL timing values (currently best-guess from datasheet)
@@ -40,4 +45,4 @@
 - [ ] Unify mailbox command IDs across all three chips
 - [ ] Write host-side Python library (ms_mailbox.py) using ms_hid.py
 - [ ] Investigate MS9123 hardware SPI support (datasheet mentions SPI pins)
-- [ ] Explore MS9123 Bus B I2C (peripheral bus, different pins from Bus A)
+- [ ] MS9123: PnP disable/enable does NOT reload EEPROM — must physical replug
